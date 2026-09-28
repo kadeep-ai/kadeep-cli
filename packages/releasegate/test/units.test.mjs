@@ -1,6 +1,7 @@
 // Pure pieces of releasegate: policy validation, verdict → exit code, report rendering. No network.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { policyYaml } from '../../kadeep/src/ops/init.mjs'
 import { annotations, exitCode, junit, markdown, parsePolicy, PolicyError } from '../src/index.mjs'
 
 const ok = (text) => parsePolicy(text, 'releasegate.yml')
@@ -113,4 +114,14 @@ test('markdown, junit and annotations', () => {
   assert.match(xml, /<testsuite name="Hindi" tests="1" failures="1"/)
   assert.deepEqual(annotations(report()), ['::error title=KaDeep Release Gate: Smoke::1/2 passed', '::warning title=KaDeep Release Gate: Hindi::hi-IN: coverage 80%25 below 100%25'])
   assert.ok(annotations(report({ mode: 'shadow' })).at(-1).startsWith('::warning title=KaDeep Release Gate::Would have blocked'))
+})
+
+test('contract: the policy `kadeep init` writes always parses here, in shadow mode', () => {
+  const full = parsePolicy(policyYaml({ project: { id: 'p1', name: 'Acme: "web"' }, suite: { key: 'smoke', name: 'Smoke #1' }, locales: ['hi-IN', 'ar-AE'] }))
+  assert.equal(full.mode, 'shadow')
+  assert.equal(full.project, 'p1')
+  assert.deepEqual(full.checks.map((c) => [c.type, c.name]), [['suite', 'Smoke #1'], ['localization', 'Localization ready']])
+  assert.deepEqual(full.checks[1].localization, { requireApproved: true, locales: ['hi-IN', 'ar-AE'], minCoverage: 100 })
+  // A project without suites gets `checks: []`, which the gate reports as a policy problem (non-blocking in shadow mode).
+  assert.throws(() => parsePolicy(policyYaml({ project: { id: 'p1' } })), (e) => e instanceof PolicyError && e.mode === 'shadow')
 })
