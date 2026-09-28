@@ -2,55 +2,232 @@
 
 **Engineering release confidence.**
 
-A go / no-go gate for CI:
-1. Reads a policy file in your repository.
-2. Runs the KaDeep checks it requires against the current commit: suites, test cases and the localization quality gate.
-3. Writes a report.
-4. Passes or fails the build.
+[![npm](https://img.shields.io/npm/v/releasegate)](https://www.npmjs.com/package/releasegate)
+[![CI](https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-```sh
-npx releasegate
-```
+A go / no-go gate for your CI pipeline, powered by [KaDeep](https://kadeep.ai). On every pull request or release build, it:
+
+1. reads a **policy** file in your repository (`releasegate.yml`);
+2. runs the KaDeep checks the policy requires against the current commit: test suites, individual test cases, and the localization quality gate;
+3. writes a **report** as JSON, Markdown and JUnit, plus a GitHub job summary and annotations;
+4. **passes or fails** the build.
+
+Start in **shadow mode**, where it reports what it would have decided and never blocks. Switch to enforce mode when you trust it.
 
 ```
+$ npx releasegate
 KaDeep Release Gate 0.1.0 · Engineering release confidence.
-project prj_8f2c · commit 3b1e9a4 on feature/checkout PR #214 · mode enforce · https://api.kadeep.ai
+project p_9a118f0499704752be72 · commit 8c3f2d1 on feature/checkout PR #214 · mode enforce · https://api.kadeep.ai
 ▸ Smoke
 ✓ Smoke: 12/12 passed (2m 41s)
+▸ Checkout
+✗ Checkout: 3/4 passed (1m 05s)
+    ✗ Pay by card [DEFECT] · Expected "Order placed" to be visible
 ▸ Localization ready
-✗ Localization ready: hi-IN: 2 deliveries not approved (translating) (0s)
+✓ Localization ready: hi-IN, ar-AE ready (0s)
 
-NO-GO · 1/2 required checks passed · 2m 42s
+NO-GO · 2/3 required checks passed · 3m 47s
 report: .releasegate/report.md
 ```
 
-Needs Node.js 20 or newer and a KaDeep project. The gate talks to the KaDeep API over HTTPS and is built on the [`kadeep`](https://www.npmjs.com/package/kadeep) CLI.
+## Contents
+
+- [Install](#install)
+- [Quick start](#quick-start)
+- [The policy file](#the-policy-file)
+- [Modes: shadow and enforce](#modes-shadow-and-enforce)
+- [Verdicts and exit codes](#verdicts-and-exit-codes)
+- [CI setup](#ci-setup)
+- [Reports](#reports)
+- [Command reference](#command-reference)
+- [How it works](#how-it-works)
+- [Use it as a library](#use-it-as-a-library)
+- [Troubleshooting](#troubleshooting)
+
+## Install
+
+Requires **Node.js 20 or newer** and a KaDeep project. Usually nothing needs installing: CI runs it with `npx`.
+
+```sh
+npx -y releasegate@^0.1            # in CI
+npm install -D releasegate         # or pin it in your project
+```
+
+`releasegate` depends on [`kadeep`](https://www.npmjs.com/package/kadeep), the KaDeep CLI, and on `yaml`. It talks to the KaDeep API over HTTPS.
 
 ## Quick start
 
-The fastest way is from your repository:
+**The fast way**, from your repository:
 
 ```sh
 npx kadeep login
-npx kadeep init          # writes releasegate.yml (shadow mode) and a GitHub Actions workflow
+npx kadeep init
 ```
 
-Then:
-1. Store the project's CI token as the repository secret `KADEEP_CI_TOKEN`. `kadeep init` prints it, or create one with `npx kadeep ci-token create`.
-2. Commit the files.
+`kadeep init` does three things:
+- writes `releasegate.yml` in shadow mode and `.github/workflows/kadeep-release-gate.yml`;
+- creates the project's CI token;
+- offers to store the token as the repository secret `KADEEP_CI_TOKEN`.
 
-By hand: add `releasegate.yml` (below) and a CI step.
+Commit both files and the gate runs on your next pull request.
+
+**By hand:**
+
+1. Create the project's CI token (`npx kadeep ci-token create`, or in the KaDeep app under Settings → CI) and store it as the CI secret `KADEEP_CI_TOKEN`.
+2. Add `releasegate.yml`:
+
+   ```yaml
+   version: 1
+   project: p_9a118f0499704752be72
+   mode: shadow
+   checks:
+     - suite: smoke
+   ```
+
+3. Run `npx -y releasegate@^0.1` in CI with `KADEEP_CI_TOKEN` set (see [CI setup](#ci-setup)).
+
+Check the policy locally without running anything: `npx releasegate --dry-run`.
+
+## The policy file
+
+`releasegate` looks for `releasegate.yml`, `releasegate.yaml`, `releasegate.json`, `.releasegate.yml` or `.github/releasegate.yml`, in that order. `--policy <file>` picks another.
 
 ```yaml
-# .github/workflows/kadeep-release-gate.yml
+version: 1
+project: p_9a118f0499704752be72      # KaDeep project id
+mode: shadow                         # shadow | enforce (default enforce)
+
+checks:
+  - name: Smoke                      # a suite: every test in it must pass
+    suite: smoke
+    browser: chromium
+    viewport: desktop
+    timeoutMinutes: 30
+
+  - name: Checkout                   # specific test cases
+    tests: [login-works, checkout-works]
+
+  - name: Mobile checkout            # advisory: reported, never blocks
+    tests: [checkout-works]
+    viewport: mobile
+    required: false
+
+  - name: Localization ready         # the localization quality gate
+    localization:
+      locales: [hi-IN, ar-AE]
+      minCoverage: 100
+      minMqm: 8
+      requireApproved: true
+
+report:
+  dir: .releasegate
+  junit: true
+  markdown: true
+```
+
+### Top-level keys
+
+| Key | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `version` | no | `1` | Policy format version; must be `1` |
+| `project` | yes* | | KaDeep project id. *Or set `KADEEP_PROJECT` or pass `--project` |
+| `mode` | no | `enforce` | `shadow` reports only; `enforce` fails the build on NO-GO |
+| `checks` | yes | | At least one check |
+| `report` | no | see below | Where and what to write |
+
+### Checks
+
+Each check has exactly **one** of `suite`, `tests` or `localization`.
+
+| Key | Applies to | Default | Meaning |
+| --- | --- | --- | --- |
+| `suite` | suite | | Suite key, id or name; every test in it must pass |
+| `tests` | tests | | A list of test keys, ids or names (a single string works too) |
+| `localization` | localization | | The localization quality gate; `true` uses the defaults |
+| `name` | all | derived | Label in the output and report |
+| `required` | all | `true` | `false` makes the check advisory: reported, never blocks |
+| `browser` | suite, tests | project setting | `chromium`, `chrome`, `msedge`, `firefox`, `webkit` |
+| `viewport` | suite, tests | project setting | `desktop`, `laptop`, `tablet`, `mobile` |
+| `timeoutMinutes` | suite, tests | `30` | How long to wait for the runs (1 to 240) |
+
+### Localization rules
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `locales` | the project's target locales | Locales that must be ready |
+| `minCoverage` | `100` | Minimum translated coverage, in percent |
+| `minMqm` | none | Minimum MQM quality score |
+| `requireApproved` | `true` | Every delivery for the locale must be approved |
+
+A locale also fails if it has open **critical** flags.
+
+### Report
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `dir` | `.releasegate` | Output directory (add it to `.gitignore`) |
+| `junit` | `true` | Write `junit.xml` |
+| `markdown` | `true` | Write `report.md` |
+
+Unknown keys are errors, with a "did you mean" suggestion. A typo can't silently drop a check, and every problem is reported at once:
+
+```
+releasegate.yml has 2 problems:
+  - checks[0]: unknown key "suit" (did you mean "suite"?)
+  - checks[0] needs exactly one of suite, tests or localization
+```
+
+## Modes: shadow and enforce
+
+| Mode | Runs checks | Writes the report | Can fail the build |
+| --- | --- | --- | --- |
+| `shadow` | yes | yes | **never**, even if the policy or token is wrong |
+| `enforce` | yes | yes | yes, on NO-GO or a setup error |
+
+A safe rollout:
+
+1. **Start in shadow mode.** `kadeep init` does this. The gate runs on every change, reports "would have blocked" when it disagrees, and blocks no one.
+2. **Watch it.** Fix flaky tests and tune the policy until its verdicts match your judgement.
+3. **Switch to enforce.** Set `mode: enforce` in `releasegate.yml`.
+
+For a single run, `--shadow`, `--enforce`, `--mode <mode>` or `RELEASEGATE_MODE` override the policy's mode.
+
+## Verdicts and exit codes
+
+| Verdict | When |
+| --- | --- |
+| **GO** | Every required check passed |
+| **NO-GO** | A required check failed or errored. An empty suite or a crashed run counts as an error, never a pass |
+| **ERROR** | The gate could not evaluate: invalid policy, missing or rejected CI token, KaDeep unreachable. Remaining checks are skipped |
+
+| Exit code | `enforce` | `shadow` |
+| --- | --- | --- |
+| `0` | GO | always |
+| `1` | NO-GO | |
+| `2` | ERROR: bad policy, token or setup | |
+| `3` | ERROR: KaDeep unreachable | |
+
+Advisory checks (`required: false`) appear in the report and annotations but never change the verdict.
+
+## CI setup
+
+In every case: Node.js 20+, the secret `KADEEP_CI_TOKEN`, and `npx -y releasegate@^0.1`.
+
+**GitHub Actions**:
+
+```yaml
 name: KaDeep Release Gate
 on:
   pull_request:
   push:
     branches: [main]
+permissions:
+  contents: read
 jobs:
   release-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -66,72 +243,9 @@ jobs:
           path: .releasegate/
 ```
 
-## Policy: `releasegate.yml`
+On GitHub the gate also adds the Markdown report to the job summary and annotates failing checks.
 
-```yaml
-version: 1
-project: prj_8f2c            # KaDeep project id
-mode: shadow                 # shadow: report only · enforce: NO-GO fails the build
-checks:
-  - name: Smoke
-    suite: smoke             # a suite: every test in it must pass
-    browser: chromium        # optional: chromium, chrome, msedge, firefox, webkit
-    viewport: desktop        # optional: desktop, laptop, tablet, mobile
-    timeoutMinutes: 30       # optional, 1–240 (default 30)
-  - name: Checkout
-    tests: [login-works, checkout-works]
-    required: false          # advisory: reported, never blocks
-  - name: Localization ready
-    localization:
-      locales: [hi-IN, ar-AE]   # default: the project's target locales
-      minCoverage: 100          # default 100
-      minMqm: 8
-      requireApproved: true     # default true
-report:
-  dir: .releasegate          # report.json, report.md, junit.xml
-```
-
-Each check has exactly one of `suite`, `tests` or `localization`. Checks are required unless `required: false`.
-
-The gate looks for `releasegate.yml`, `.yaml` or `.json` in the working directory; `--policy <file>` picks another. Unknown keys are errors (with a "did you mean"), so a typo cannot silently drop a check.
-
-## Verdicts, modes and exit codes
-
-| Verdict | When |
-| --- | --- |
-| **GO** | Every required check passed |
-| **NO-GO** | A required check failed or errored. An empty suite is an error, never a pass |
-| **ERROR** | The gate could not evaluate: invalid policy, missing or wrong CI token, KaDeep unreachable |
-
-| Mode | Exit code |
-| --- | --- |
-| `enforce` | `0` GO · `1` NO-GO · `2` bad policy, token or setup · `3` KaDeep unreachable |
-| `shadow` | Always `0`. The report and the logs say what the verdict would have been |
-
-**Rolling out**
-1. Start in `shadow` mode (`kadeep init` does this). The gate runs on every change and reports without blocking anyone, even if the policy or token is wrong.
-2. Once it has been green for a while, set `mode: enforce`.
-
-`--mode`, `--shadow`, `--enforce` or `RELEASEGATE_MODE` override the policy for one run.
-
-## Report
-
-Every run writes the report to `.releasegate/`, whatever the verdict:
-- `report.json`: verdict, mode, commit, and each check with its runs and failures.
-- `report.md`: the same, readable in a PR.
-- `junit.xml`: one suite per check, for CI test dashboards.
-
-On GitHub Actions, the gate also:
-- adds the Markdown report to the run summary;
-- annotates failing checks: errors when they block, warnings in shadow mode or for advisory checks.
-
-`--json` prints the report to stdout.
-
-The commit is read from the CI environment: GitHub Actions (the PR head, not the merge commit), GitLab CI, CircleCI, Bitbucket Pipelines, Buildkite, Azure Pipelines and Jenkins. Anywhere else it falls back to `git`.
-
-## Other CI providers
-
-Run `npx -y releasegate@^0.1` with `KADEEP_CI_TOKEN` set from your secret store. For example, GitLab CI:
+**GitLab CI**:
 
 ```yaml
 release-gate:
@@ -144,21 +258,145 @@ release-gate:
       junit: .releasegate/junit.xml
 ```
 
-## Options and environment
+**CircleCI**:
 
+```yaml
+jobs:
+  release-gate:
+    docker: [{ image: cimg/node:22.0 }]
+    steps:
+      - checkout
+      - run: npx -y releasegate@^0.1
+      - store_test_results: { path: .releasegate }
+      - store_artifacts: { path: .releasegate }
 ```
-releasegate [--policy <file>] [--mode enforce|shadow | --shadow | --enforce] [--report-dir <dir>]
-            [--dry-run] [--json] [--project <id>] [--api <url>]
+
+**Bitbucket Pipelines**:
+
+```yaml
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          image: node:22
+          script:
+            - npx -y releasegate@^0.1
+          artifacts: [.releasegate/**]
 ```
 
-- `--dry-run` validates the policy and settings and lists the checks, without calling KaDeep.
+The gate reads the commit, branch, PR number and run link from GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Buildkite, Azure Pipelines and Jenkins. On a GitHub pull request it uses the PR head commit, not the merge commit. Anywhere else it asks `git`.
 
-| Variable | Use |
+## Reports
+
+Every run writes to `.releasegate/`, whatever the verdict, including setup errors:
+
+| File | For |
 | --- | --- |
-| `KADEEP_CI_TOKEN` | The project's CI token (required in CI). On a laptop, a `kadeep login` session works for suite and test checks |
+| `report.json` | Machines: the full result (below) |
+| `report.md` | People: a table of checks and the failing tests, readable in a PR |
+| `junit.xml` | CI test dashboards: one test suite per check |
+
+`report.json`:
+
+```json
+{
+  "tool": "KaDeep Release Gate",
+  "version": "0.1.0",
+  "kadeep": "0.1.0",
+  "verdict": "NO-GO",
+  "mode": "enforce",
+  "blocking": true,
+  "project": "p_9a118f0499704752be72",
+  "api": "https://api.kadeep.ai",
+  "commit": { "provider": "github", "ci": true, "commit": "8c3f2d1e…", "branch": "feature/checkout", "pr": "214", "repo": "acme/web", "runUrl": "https://github.com/acme/web/actions/runs/4242" },
+  "startedAt": "2026-09-29T09:12:03.120Z",
+  "finishedAt": "2026-09-29T09:15:50.774Z",
+  "durationMs": 227654,
+  "checks": [
+    {
+      "name": "Checkout", "type": "tests", "required": true, "status": "failed", "summary": "3/4 passed",
+      "passed": 3, "failed": 1, "total": 4, "jobs": ["job_…"],
+      "runs": [{ "id": "r_…", "name": "Pay by card", "status": "failed", "verdict": "DEFECT", "error": "Expected \"Order placed\" to be visible", "report": "reports/…md" }]
+    }
+  ]
+}
+```
+
+A check's `status` is one of `passed`, `failed`, `error` or `skipped` (not run after a fatal error).
+
+## Command reference
+
+```
+releasegate [options]
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--policy <file>` | Policy file (default: the first of the names listed [above](#the-policy-file)) |
+| `--mode enforce\|shadow` | Override the policy's mode |
+| `--shadow` / `--enforce` | Short forms of `--mode` |
+| `--report-dir <dir>` | Where the reports go (overrides `report.dir`) |
+| `--dry-run` | Validate the policy and settings and list the checks; call nothing |
+| `--json` | Print the report as JSON on stdout |
+| `-p, --project <id>` | Override the policy's project |
+| `--api <url>` | KaDeep API address (default `https://api.kadeep.ai`) |
+| `--no-color` | Plain output |
+| `-h, --help` / `-v, --version` | Help / version |
+
+| Environment variable | Meaning |
+| --- | --- |
+| `KADEEP_CI_TOKEN` | The project's CI token. Required in CI; on a laptop a `kadeep login` session works for suite and test checks |
 | `RELEASEGATE_MODE` | `enforce` or `shadow`, overriding the policy |
 | `KADEEP_PROJECT` | Project id when the policy has none |
-| `KADEEP_API` | API base URL (default `https://api.kadeep.ai`) |
+| `KADEEP_API` | API address |
+
+`TESTSTUDIOS_CI_TOKEN` is read too, for pipelines set up for the older `teststudios` CLI.
+
+## How it works
+
+`releasegate` is a thin layer over [`kadeep`](https://www.npmjs.com/package/kadeep). It adds the policy, the verdict and the reports; `kadeep` does the rest:
+- the API client and authentication;
+- running tests;
+- the localization gate;
+- reading the commit from the CI environment;
+- JUnit output.
+
+For each check:
+1. **Suite and test checks** start runs on KaDeep's queue with the CI token (`POST /api/ci/:project/run`, async), then poll the job until it finishes.
+2. No request stays open while tests run, so proxies and load balancers with idle timeouts cannot cut a long suite, and a CI network blip only costs a retried poll.
+3. **Localization checks** call KaDeep's localization quality gate for the listed locales.
+4. The verdict is computed from the required checks, the reports are written, and the process exits with the code for the mode.
+
+An invalid or rejected token stops the gate at the first check (`ERROR`) instead of failing every check separately.
+
+## Use it as a library
+
+```js
+import { loadPolicy, runGate, exitCode, markdown } from 'releasegate'
+import { createClient, ciContext, resolveApi } from 'kadeep'
+
+const policy = loadPolicy('releasegate.yml')
+const api = resolveApi()
+const client = createClient({ api, auth: { kind: 'ci', token: process.env.KADEEP_CI_TOKEN } })
+const report = await runGate({ policy, mode: policy.mode, project: policy.project, api, client, commit: ciContext() })
+console.log(markdown(report))
+process.exitCode = exitCode(report)
+```
+
+Also exported: `parsePolicy`, `findPolicy`, `PolicyError`, `junit`, `annotations`, `writeReports`, `errorReport`, `main`.
+
+## Troubleshooting
+
+| Message | What to do |
+| --- | --- |
+| `No release gate policy found` | Add `releasegate.yml` (`npx kadeep init`) or pass `--policy` |
+| `KADEEP_CI_TOKEN is not set` | Add the secret and pass it to the step's environment |
+| `The CI token was rejected` | The token was replaced (`kadeep ci-token create --yes`) or belongs to another project |
+| `No tests ran: the suite has no test cases` | Add tests to the suite in KaDeep, or fix the suite key |
+| `Test not found: …` | A test key in `tests:` does not exist; check `npx kadeep tests` |
+| `Could not reach https://api.kadeep.ai` | Network or proxy from your CI runner (exit 3; shadow mode still exits 0) |
+
+Found a bug? [Open an issue](https://github.com/kadeep-ai/kadeep-cli/issues).
 
 ## License
 
