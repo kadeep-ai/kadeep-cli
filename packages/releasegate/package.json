@@ -1,0 +1,55 @@
+{
+  "name": "releasegate",
+  "version": "0.1.0",
+  "description": "KaDeep Release Gate: a go/no-go gate for CI. Reads a policy in your repo, runs the required KaDeep checks for the current commit, writes a report and passes or fails the build.",
+  "keywords": [
+    "release",
+    "release-gate",
+    "quality-gate",
+    "go-no-go",
+    "ci",
+    "github-actions",
+    "qa",
+    "testing",
+    "kadeep"
+  ],
+  "homepage": "https://kadeep.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadeep-ai/kadeep-cli.git",
+    "directory": "packages/releasegate"
+  },
+  "bugs": {
+    "url": "https://github.com/kadeep-ai/kadeep-cli/issues"
+  },
+  "author": {
+    "name": "Kadeep Technologies",
+    "url": "https://kadeep.ai"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "releasegate": "bin/releasegate.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "kadeep": "^0.1.0",
+    "yaml": "^2.6.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "node ../../scripts/check-packs.mjs"
+  }
+}

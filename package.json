@@ -1,0 +1,23 @@
+{
+  "name": "kadeep-cli",
+  "private": true,
+  "description": "The kadeep CLI and the KaDeep Release Gate (releasegate), published to npm.",
+  "homepage": "https://kadeep.ai",
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm test -w kadeep -w releasegate",
+    "typecheck": "tsc -p packages/kadeep && tsc -p packages/releasegate",
+    "check:packs": "node scripts/check-packs.mjs",
+    "ci": "npm run typecheck && npm test && npm run check:packs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

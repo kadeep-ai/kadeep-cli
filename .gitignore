@@ -1,0 +1,4 @@
+node_modules/
+*.tgz
+.releasegate/
+.DS_Store

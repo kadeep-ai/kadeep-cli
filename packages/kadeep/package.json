@@ -1,0 +1,52 @@
+{
+  "name": "kadeep",
+  "version": "0.1.0",
+  "description": "KaDeep CLI: browse projects, suites and test cases, run tests, read results and gate localization from the terminal, CI or a coding agent (MCP).",
+  "keywords": [
+    "kadeep",
+    "qa",
+    "testing",
+    "e2e",
+    "test-automation",
+    "cli",
+    "ci",
+    "mcp",
+    "localization",
+    "release"
+  ],
+  "homepage": "https://kadeep.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadeep-ai/kadeep-cli.git",
+    "directory": "packages/kadeep"
+  },
+  "bugs": {
+    "url": "https://github.com/kadeep-ai/kadeep-cli/issues"
+  },
+  "author": {
+    "name": "Kadeep Technologies",
+    "url": "https://kadeep.ai"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "kadeep": "bin/kadeep.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "node ../../scripts/check-packs.mjs"
+  }
+}
