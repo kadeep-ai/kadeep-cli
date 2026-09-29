@@ -22,8 +22,12 @@ import { ciContext } from '../ci-env.mjs'
  *   env: NodeJS.ProcessEnv,
  *   stdout: NodeJS.WriteStream,
  *   stderr: NodeJS.WriteStream,
- *   stdin: NodeJS.ReadStream
+ *   stdin: NodeJS.ReadStream,
+ *   session?: Session
  * }} Term
+ * @typedef {{ keys: import('./keys.mjs').Keys, lives: Set<{ stop: (o?: { keep?: boolean }) => void }>, signal?: AbortSignal }} Session
+ *   Set inside the interactive session: keys come from the session's input hub, live regions register so an
+ *   interrupted command can be cleared, and `signal` aborts when the user interrupts the command.
  */
 
 /** @param {NodeJS.ProcessEnv} env */
@@ -58,7 +62,7 @@ function unicodeOk(env) {
 }
 
 /**
- * @param {{ env?: NodeJS.ProcessEnv, stdout?: NodeJS.WriteStream, stderr?: NodeJS.WriteStream, stdin?: NodeJS.ReadStream, json?: boolean, noColor?: boolean }} [opts]
+ * @param {{ env?: NodeJS.ProcessEnv, stdout?: NodeJS.WriteStream, stderr?: NodeJS.WriteStream, stdin?: NodeJS.ReadStream, json?: boolean, noColor?: boolean, session?: Session }} [opts]
  * @returns {Term}
  */
 export function detectTerm(opts = {}) {
@@ -80,6 +84,7 @@ export function detectTerm(opts = {}) {
     env,
     stdout,
     stderr,
-    stdin
+    stdin,
+    ...(opts.session ? { session: opts.session } : {})
   }
 }

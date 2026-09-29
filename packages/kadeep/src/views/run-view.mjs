@@ -6,7 +6,7 @@ import { box, clock, createLive, dotStrip, pad, pulse, truncate, width } from '.
  * @typedef {import('../ops/run.mjs').RunResult} RunResult
  * @typedef {import('../ops/run.mjs').RunTestsResult} RunTestsResult
  * @typedef {import('../ops/run.mjs').Progress} Progress
- * @typedef {{ progress: (p: Progress) => void, done: (r: RunTestsResult, junitFile?: string) => void }} RunView
+ * @typedef {{ progress: (p: Progress) => void, done: (r: RunTestsResult, junitFile?: string) => void, stop: () => void }} RunView
  */
 
 /** @param {unknown} s */
@@ -51,7 +51,8 @@ export function runView(out, opts) {
       },
       done(r, junitFile) {
         out.result(r, () => printRunResult(out, r, junitFile))
-      }
+      },
+      stop() {}
     }
   }
 
@@ -106,6 +107,10 @@ export function runView(out, opts) {
   })
 
   return {
+    /** Clear the live region without a verdict (the wait was interrupted). */
+    stop() {
+      live.stop({ keep: false })
+    },
     progress(p) {
       if (p.job?.id) jobId = p.job.id
       if (!fixedTotal && typeof p.total === 'number' && p.total > 0) total = p.total

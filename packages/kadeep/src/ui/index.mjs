@@ -11,7 +11,7 @@ import { detectTerm } from './term.mjs'
  */
 
 /**
- * @param {{ json?: boolean, noColor?: boolean, accent?: 'testing' | 'loc', env?: NodeJS.ProcessEnv, stdout?: NodeJS.WriteStream, stderr?: NodeJS.WriteStream, stdin?: NodeJS.ReadStream }} [opts]
+ * @param {{ json?: boolean, noColor?: boolean, accent?: 'testing' | 'loc', env?: NodeJS.ProcessEnv, stdout?: NodeJS.WriteStream, stderr?: NodeJS.WriteStream, stdin?: NodeJS.ReadStream, session?: import('./term.mjs').Session }} [opts]
  * @returns {UiContext}
  */
 export function createUi(opts = {}) {
@@ -20,13 +20,14 @@ export function createUi(opts = {}) {
 }
 
 export { detectTerm } from './term.mjs'
-export { createStyle, strip, width, truncate, pad } from './style.mjs'
+export { createStyle, strip, width, truncate, pad, wrap } from './style.mjs'
 export { glyphs, pulse, clock } from './symbols.mjs'
 export { createLive } from './live.mjs'
 export { header, markLines, KS_MARK, MARK_WIDTH } from './logo.mjs'
 export { bigText } from './dotfont.mjs'
 export { dotStrip } from './dots.mjs'
 export { box } from './box.mjs'
-export { createPrompts, parseKeys } from './prompts.mjs'
+export { createPrompts, BACK } from './prompts.mjs'
+export { parseKeys, createKeys } from './keys.mjs'
 export { dotFill } from './animate.mjs'
 export { withSpinner } from './spinner.mjs'

@@ -1,7 +1,7 @@
 // @ts-check
 import { loadConfig, updateConfig } from './config.mjs'
 import { EXIT, KadeepError } from './errors.mjs'
-import { request } from './http.mjs'
+import { request, stream as streamRequest } from './http.mjs'
 
 /**
  * How a call is authenticated. A session is a login (refreshes itself); `token` is KADEEP_TOKEN (an access token,
@@ -13,7 +13,7 @@ import { request } from './http.mjs'
 
 /** @param {string} api */
 const notLoggedIn = (api) => new KadeepError(`Not logged in to ${api}. Run \`kadeep login\` (or set KADEEP_TOKEN).`, { code: 'auth_required', exitCode: EXIT.USAGE })
-const noCiToken = () => new KadeepError('This needs the project\'s CI token: set KADEEP_CI_TOKEN (create one with `kadeep ci-token create`, or in the app under Settings → CI).', { code: 'ci_token_required', exitCode: EXIT.USAGE })
+const noCiToken = () => new KadeepError('This needs the project\'s CI token: set KADEEP_CI_TOKEN (create one with `kadeep ci-token create`, or in the app under Settings → Connect).', { code: 'ci_token_required', exitCode: EXIT.USAGE })
 
 /**
  * Pick credentials for what a command needs. Sessions are stored per API, so a token is only ever sent to the host
@@ -164,12 +164,32 @@ export function createClient({ api, auth, env = process.env, userAgent }) {
     throw toError(res, current, api)
   }
 
+  /**
+   * POST and read the reply as it streams (the agent's Server-Sent Events); a login is refreshed once on a 401
+   * before the stream starts, like `call()`.
+   * @param {string} path
+   * @param {unknown} body
+   * @param {(text: string) => void} onData
+   * @param {{ signal?: AbortSignal, idleMs?: number }} [opts]
+   */
+  async function stream(path, body, onData, opts = {}) {
+    const go = () => {
+      const token = bearer()
+      return streamRequest(`${api}${path}`, { method: 'POST', body, headers: token ? { authorization: `Bearer ${token}` } : {}, signal: opts.signal, idleMs: opts.idleMs, userAgent }, onData)
+    }
+    let res = await go()
+    if (res.status === 401 && current.kind === 'session' && (await refresh())) res = await go()
+    if (res.status >= 200 && res.status < 300) return
+    throw toError(res, current, api)
+  }
+
   return {
     api,
     get auth() {
       return current
     },
     call,
+    stream,
     /** @param {string} path @param {CallOptions} [opts] */
     get: (path, opts) => call('GET', path, opts),
     /** @param {string} path @param {unknown} [body] @param {CallOptions} [opts] */

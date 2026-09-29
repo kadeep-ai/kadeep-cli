@@ -40,6 +40,26 @@ export const routes = {
   startTest: (c, p, key, body) => c.post(`${P(p)}/flows/${e(key)}/run`, body),
   /** @param {Client} c @param {string} p */
   createCiToken: (c, p) => c.post(`${P(p)}/ci-token`),
+  /** Whether the user's model key works (the agent answers only when it does). @param {Client} c */
+  llm: (c) => c.get('/api/settings/llm'),
+  chats: {
+    /** @param {Client} c @param {string} p */
+    list: (c, p) => c.get('/api/chats', { query: { projectId: p } }),
+    /** @param {Client} c @param {string} id */
+    get: (c, id) => c.get(`/api/chats/${e(id)}`),
+    /** @param {Client} c @param {{ projectId: string, mode?: string, title?: string }} body */
+    create: (c, body) => c.post('/api/chats', body)
+  },
+  agent: {
+    /** One turn, streamed back as Server-Sent Events. @param {Client} c @param {Record<string, unknown>} body @param {(text: string) => void} onData @param {{ signal?: AbortSignal }} [opts] */
+    chat: (c, body, onData, opts) => c.stream('/api/agent/chat', body, onData, opts),
+    /** @param {Client} c @param {Record<string, unknown>} body */
+    hitl: (c, body) => c.post('/api/agent/hitl', body),
+    /** @param {Client} c @param {string} id @param {Record<string, unknown>} body */
+    plan: (c, id, body) => c.post(`/api/agent/plan/${e(id)}`, body),
+    /** @param {Client} c @param {string} clientId */
+    stop: (c, clientId) => c.post('/api/agent/stop', { clientId })
+  },
   ci: {
     /** @param {Client} c @param {string} p @param {Record<string, unknown>} body @param {import('./client.mjs').CallOptions} [opts] */
     run: (c, p, body, opts) => c.post(`/api/ci/${e(p)}/run`, body, { accept: [422], ...opts }),

@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { bigText, box, createLive, createPrompts, createStyle, createUi, detectTerm, dotStrip, glyphs, header, KS_MARK, pad, parseKeys, strip, truncate, width } from '../src/ui/index.mjs'
+import { BACK, bigText, box, createKeys, createLive, createPrompts, createStyle, createUi, detectTerm, dotStrip, glyphs, header, KS_MARK, pad, parseKeys, strip, truncate, width, wrap } from '../src/ui/index.mjs'
 
 /** A fake terminal stream that records what is written. */
 function stream({ tty = true, columns = 80, depth = 24 } = {}) {
@@ -126,7 +126,38 @@ test('keys: arrows, enter, Ctrl-C, backspace, printable characters and pastes', 
   assert.deepEqual(parseKeys('ab\u007f'), [{ char: 'a' }, { char: 'b' }, 'backspace'])
   assert.deepEqual(parseKeys('\u0003'), ['ctrl-c'])
   assert.deepEqual(parseKeys('é '), [{ char: 'é' }, 'space'])
-  assert.deepEqual(parseKeys('\u001b[3~x'), [{ char: 'x' }], 'unknown sequences are skipped')
+  assert.deepEqual(parseKeys('\u001b[2~x'), [{ char: 'x' }], 'unknown sequences are skipped')
+  assert.deepEqual(parseKeys('\u001b[Z\u001b[3~\u001b[H\u001b[F\u0015\u0017'), ['shift-tab', 'delete', 'home', 'end', 'ctrl-u', 'ctrl-w'])
+})
+
+test('wrap: by display width, never mid-word; long words cut; hanging indents; maxLines ends in …', () => {
+  const text = 'The app entry page shows an "Acme Insurance" tenant picker with heading "Choose your organisation"'
+  const lines = wrap(text, 30)
+  assert.ok(lines.every((l) => width(l) <= 30))
+  assert.equal(lines.join(' '), text, 'every word kept, in order')
+  assert.ok(lines.every((l) => !/^\S+$/.test(l) || text.split(' ').includes(l)), 'no word is split')
+  assert.deepEqual(wrap('one two three four', 11, { first: '• ', indent: '  ' }), ['• one two', '  three', '  four'])
+  assert.deepEqual(wrap('https://example.com/a/very/long/path', 12), ['https://exam', 'ple.com/a/ve', 'ry/long/path'])
+  assert.deepEqual(wrap('日本語のテキスト', 6), ['日本語', 'のテキ', 'スト'], 'wide characters count 2')
+  const cut = wrap('alpha beta gamma delta epsilon', 12, { maxLines: 2 })
+  assert.equal(cut.length, 2)
+  assert.match(cut[1], /…$/)
+  assert.deepEqual(wrap('first\n\nsecond', 20), ['first', '', 'second'], 'paragraphs kept')
+})
+
+test('keys hub: only the newest handler hears a key; raw mode lasts while anyone listens', () => {
+  const stdin = fakeStdin()
+  const keys = createKeys(stdin)
+  const heard = { a: [], b: [] }
+  const offA = keys.push((k) => heard.a.push(k))
+  assert.equal(stdin.raw, true)
+  const offB = keys.push((k) => heard.b.push(k))
+  stdin.emit('data', 'x')
+  offB()
+  stdin.emit('data', '\u001b')
+  assert.deepEqual(heard, { a: ['escape'], b: [{ char: 'x' }] })
+  offA()
+  assert.equal(stdin.raw, false, 'raw mode off when nobody listens')
 })
 
 /** A rich UI whose stdin the test types into. */
@@ -178,4 +209,56 @@ test('confirm, multiselect, text (validated) and password (never echoed)', async
 test('prompts refuse to run without an interactive terminal', async () => {
   const ui = createUi({ env: { CI: 'true' }, stdout: stream(), stderr: stream(), stdin: fakeStdin() })
   await assert.rejects(createPrompts(ui).confirm({ message: 'x' }), (e) => e.code === 'usage' && e.exitCode === 2)
+})
+
+test('pick: Esc on an empty filter resolves to BACK and erases the picker; select never does', async () => {
+  const { type, p, err } = promptUi()
+  type('\u001b')
+  assert.equal(await p.pick({ message: 'Runs', options: [{ label: 'a', value: 1 }, { label: 'b', value: 2 }] }), BACK)
+  assert.doesNotMatch(strip(err.out).split('\n').slice(-2).join('\n'), /Runs/, 'nothing left on screen')
+  const second = promptUi()
+  second.type('\u001b', '\r')
+  assert.equal(await second.p.select({ message: 'Runs', options: [{ label: 'a', value: 1 }] }), 1)
+})
+
+/** Type into the command line and resolve with what it returns. */
+async function commandLine(keys, opts = {}) {
+  const { type, p, err } = promptUi()
+  type(...keys)
+  const palette = [{ name: 'runs', summary: 'recent runs' }, { name: 'run', summary: 'run a suite' }, { name: 'suites', summary: 'suites' }, { name: 'exit', summary: 'leave' }]
+  const r = await p.command({ palette, search: (q) => (q.startsWith('che') ? [{ kind: 'test', label: 'Checkout heading', value: { kind: 'test', key: 'checkout' } }] : []), ...opts })
+  return { r, err: strip(err.out) }
+}
+
+test('command line: / opens the palette (exact match first), tab completes, enter runs the highlighted one', async () => {
+  let { r, err } = await commandLine(['/', 'r', 'u', 'n', '\r'])
+  assert.deepEqual(r, { kind: 'command', text: '/run' }, 'exact name first')
+  assert.match(err, /● \/run\s+run a suite/)
+  ;({ r } = await commandLine(['/', 'r', 'u', '\u001b[B', '\r']))
+  assert.deepEqual(r, { kind: 'command', text: '/run' }, '↓ moves in the palette')
+  ;({ r } = await commandLine(['/', 's', 'u', '\t', '-', '-', 'x', '\r']))
+  assert.deepEqual(r, { kind: 'command', text: '/suites --x' }, 'tab completes, then flags can follow')
+})
+
+test('command line: plain text goes on as text; ↓ picks a search match; history on ↑; shift+tab calls back', async () => {
+  let { r } = await commandLine(['w', 'h', 'y', ' ', '?', '\r'])
+  assert.deepEqual(r, { kind: 'text', text: 'why ?' })
+  ;({ r } = await commandLine(['c', 'h', 'e', '\u001b[B', '\r']))
+  assert.equal(r.kind, 'open')
+  assert.deepEqual(r.value, { kind: 'test', key: 'checkout' })
+  ;({ r } = await commandLine(['\u001b[A', '\r'], { history: ['older', 'last thing'] }))
+  assert.deepEqual(r, { kind: 'text', text: 'last thing' })
+  let shifted = 0
+  ;({ r } = await commandLine(['\u001b[Z', '\u001b[Z', 'x', '\r'], { onShiftTab: () => shifted++ }))
+  assert.equal(shifted, 2)
+  ;({ r } = await commandLine(['a', 'b', '\u001b[D', '\u001b[D', 'X', '\u0005', 'Y', '\r']))
+  assert.deepEqual(r, { kind: 'text', text: 'XabY' }, 'cursor keys edit mid-line')
+})
+
+test('command line: Ctrl-C clears the line, twice on an empty line exits; Ctrl-D exits', async () => {
+  let { r, err } = await commandLine(['a', 'b', '\u0003', '\u0003', '\u0003'])
+  assert.deepEqual(r, { kind: 'exit' })
+  assert.match(err, /Press Ctrl-C again to exit/)
+  ;({ r } = await commandLine(['\u0004']))
+  assert.deepEqual(r, { kind: 'exit' })
 })

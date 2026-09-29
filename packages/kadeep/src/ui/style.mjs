@@ -114,3 +114,61 @@ export function truncate(s, max) {
 
 /** Pad to `n` columns by display width. @param {string} s @param {number} n */
 export const pad = (s, n) => s + ' '.repeat(Math.max(0, n - width(s)))
+
+/**
+ * Word-wrap plain text to `max` columns by display width, so long lines never break mid-word the way a terminal
+ * wraps them. Line breaks in the text are kept; a word longer than a line (a URL) is cut; past `maxLines` the last
+ * line ends in `…`. Wrap the plain text first, then style each line.
+ * @param {string} text
+ * @param {number} max  columns, including the indent
+ * @param {{ indent?: string, first?: string, maxLines?: number }} [opts]  `first` replaces `indent` on the first line (a hanging indent)
+ * @returns {string[]}
+ */
+export function wrap(text, max, opts = {}) {
+  const indent = opts.indent ?? ''
+  const first = opts.first ?? indent
+  /** @type {string[]} */
+  const lines = []
+  for (const para of strip(String(text ?? '')).replace(/\r\n?/g, '\n').split('\n')) {
+    let lead = lines.length ? indent : first
+    let room = Math.max(1, max - width(lead))
+    let line = ''
+    const flush = () => {
+      lines.push(`${lead}${line}`.trimEnd())
+      line = ''
+      lead = indent
+      room = Math.max(1, max - width(lead))
+    }
+    for (const word of para.split(/[ \t]+/).filter(Boolean)) {
+      const w = width(word)
+      if (line && width(line) + 1 + w <= room) {
+        line += ` ${word}`
+        continue
+      }
+      if (line) flush()
+      if (w <= room) {
+        line = word
+        continue
+      }
+      // Longer than a whole line: cut it into line-sized pieces.
+      let piece = ''
+      for (const ch of word) {
+        if (width(piece + ch) > room) {
+          line = piece
+          flush()
+          piece = ''
+        }
+        piece += ch
+      }
+      line = piece
+    }
+    flush()
+  }
+  if (opts.maxLines && lines.length > opts.maxLines) {
+    const kept = lines.slice(0, opts.maxLines)
+    const last = kept[kept.length - 1]
+    kept[kept.length - 1] = width(last) + 1 <= max ? `${last}…` : truncate(last, max)
+    return kept
+  }
+  return lines
+}
