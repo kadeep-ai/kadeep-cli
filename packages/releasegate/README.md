@@ -1,12 +1,16 @@
-# releasegate: KaDeep Release Gate
+<p align="center"><a href="https://kadeep.ai"><img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/kadeep-studios-logo.svg" alt="KaDeep Studios logo" width="80" height="80"></a></p>
 
-**Engineering release confidence.**
+# releasegate: KaDeep Release Gate for CI/CD
 
-[![npm](https://img.shields.io/npm/v/releasegate)](https://www.npmjs.com/package/releasegate)
+**Engineering release confidence.** A go / no-go quality gate for your CI/CD pipeline, powered by KaDeep Studios.
+
+[![npm](https://img.shields.io/npm/v/releasegate?color=0A0A0A)](https://www.npmjs.com/package/releasegate)
 [![CI](https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml)
+![Node.js 20+](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)
+![GitHub Actions · GitLab CI · CircleCI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%20GitLab%20%C2%B7%20CircleCI-2088FF)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-A go / no-go gate for your CI pipeline, powered by [KaDeep](https://kadeep.ai). On every pull request or release build, it:
+Know exactly when to ship. `releasegate` asks [KaDeep Studios](https://kadeep.ai) about the exact commit under test and returns a **go or no-go, not a test report**. On every pull request or release build, it:
 
 1. reads a **policy** file in your repository (`releasegate.yml`);
 2. runs the KaDeep checks the policy requires against the current commit: test suites, individual test cases, and the localization quality gate;
@@ -66,7 +70,7 @@ npx kadeep init
 ```
 
 `kadeep init` does three things:
-- writes `releasegate.yml` in shadow mode and `.github/workflows/kadeep-release-gate.yml`;
+- writes `releasegate.yml` in shadow mode and `.github/workflows/releasegate.yml`;
 - creates the project's CI token;
 - offers to store the token as the repository secret `KADEEP_CI_TOKEN`.
 
@@ -74,7 +78,7 @@ Commit both files and the gate runs on your next pull request.
 
 **By hand:**
 
-1. Create the project's CI token (`npx kadeep ci-token create`, or in the KaDeep app under Settings → CI) and store it as the CI secret `KADEEP_CI_TOKEN`.
+1. Create the project's CI token (`npx kadeep ci-token create`, or in KaDeep Studios under Settings → CI) and store it as the CI secret `KADEEP_CI_TOKEN`.
 2. Add `releasegate.yml`:
 
    ```yaml
@@ -225,7 +229,7 @@ on:
 permissions:
   contents: read
 jobs:
-  release-gate:
+  releasegate:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -248,7 +252,7 @@ On GitHub the gate also adds the Markdown report to the job summary and annotate
 **GitLab CI**:
 
 ```yaml
-release-gate:
+releasegate:
   image: node:22
   script: npx -y releasegate@^0.1
   artifacts:
@@ -262,7 +266,7 @@ release-gate:
 
 ```yaml
 jobs:
-  release-gate:
+  releasegate:
     docker: [{ image: cimg/node:22.0 }]
     steps:
       - checkout

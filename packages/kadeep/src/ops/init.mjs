@@ -74,7 +74,7 @@ export function workflowYaml({ branch, api }) {
     '  contents: read',
     '',
     'jobs:',
-    '  release-gate:',
+    '  releasegate:',
     '    name: KaDeep Release Gate',
     '    runs-on: ubuntu-latest',
     '    timeout-minutes: 45',
@@ -154,7 +154,7 @@ function gitignore(file) {
 export function planInit({ dir, api, project, suite, locales, ci, mcp, force }) {
   /** @type {FileWrite[]} */
   const writes = [plainFile(join(dir, 'releasegate.yml'), policyYaml({ project, suite, locales }), force)]
-  if (ci === 'github') writes.push(plainFile(join(dir, '.github/workflows/kadeep-release-gate.yml'), workflowYaml({ branch: defaultBranch(dir), api }), force))
+  if (ci === 'github') writes.push(plainFile(join(dir, '.github/workflows/releasegate.yml'), workflowYaml({ branch: defaultBranch(dir), api }), force))
   if (mcp) {
     const entry = mcpEntry({ project: project.id, api })
     writes.push(mcpFile(join(dir, '.mcp.json'), entry, force), mcpFile(join(dir, '.cursor/mcp.json'), entry, force))

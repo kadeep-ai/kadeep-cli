@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ciContext, DEFAULT_API, junitXml, KadeepError, resolveApi, resolveAuth } from '../src/index.mjs'
-import { policyYaml, mcpEntry, RANGE } from '../src/ops/init.mjs'
+import { policyYaml, mcpEntry, planInit, RANGE } from '../src/ops/init.mjs'
 
 test('ciContext reads each provider, and the PR head on GitHub pull requests', () => {
   const dir = mkdtempSync(join(tmpdir(), 'kadeep-ci-'))
@@ -56,4 +56,14 @@ test('init templates: shadow policy with the suite and locales; MCP entry pins t
   assert.match(yaml, /locales: \[hi-IN, ar-AE\]/)
   assert.equal(RANGE, '^0.1')
   assert.deepEqual(mcpEntry({ project: 'p1', api: DEFAULT_API }), { command: 'npx', args: ['-y', 'kadeep@^0.1', 'mcp'], env: { KADEEP_PROJECT: 'p1' } })
+})
+
+test('init: the workflow is .github/workflows/releasegate.yml with a releasegate job, named after the command', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kadeep-init-'))
+  const writes = planInit({ dir, api: DEFAULT_API, project: { id: 'p1' }, suite: { key: 'smoke', name: 'Smoke' }, ci: 'github', mcp: false, force: false })
+  const wf = writes.find((w) => w.path.endsWith('.github/workflows/releasegate.yml'))
+  assert.ok(wf, writes.map((w) => w.path).join(', '))
+  assert.match(wf.content, /^ {2}releasegate:$/m)
+  assert.match(wf.content, /run: npx -y releasegate@\^0\.1/)
+  assert.doesNotMatch(wf.content, /KADEEP_API/, 'the default API is not written into CI')
 })

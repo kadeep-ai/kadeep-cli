@@ -1,17 +1,21 @@
 {
   "name": "releasegate",
   "version": "0.1.0",
-  "description": "KaDeep Release Gate: a go/no-go gate for CI. Reads a policy in your repo, runs the required KaDeep checks for the current commit, writes a report and passes or fails the build.",
+  "description": "KaDeep Release Gate for CI/CD: runs the KaDeep Studios checks your policy requires for every commit and returns a go / no-go, not a test report. Works with GitHub Actions, GitLab CI, CircleCI and more.",
   "keywords": [
-    "release",
-    "release-gate",
+    "releasegate",
+    "kadeep",
+    "kadeep-studios",
     "quality-gate",
     "go-no-go",
-    "ci",
+    "ci-cd",
     "github-actions",
+    "gitlab-ci",
+    "continuous-delivery",
+    "e2e-testing",
+    "test-automation",
     "qa",
-    "testing",
-    "kadeep"
+    "localization"
   ],
   "homepage": "https://kadeep.ai",
   "repository": {

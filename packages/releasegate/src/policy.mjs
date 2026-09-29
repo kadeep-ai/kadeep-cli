@@ -53,7 +53,7 @@ export function findPolicy(cwd, explicit) {
     return file
   }
   for (const name of POLICY_FILES) if (existsSync(join(cwd, name))) return join(cwd, name)
-  throw new PolicyError(`No release gate policy found in ${cwd}. Create releasegate.yml (\`npx kadeep init\` writes one) or pass --policy <file>.`)
+  throw new PolicyError(`No releasegate policy found in ${cwd}. Create releasegate.yml (\`npx kadeep init\` writes one) or pass --policy <file>.`)
 }
 
 /** @param {string} file */
