@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ciContext, DEFAULT_API, junitXml, KadeepError, resolveApi, resolveAuth } from '../src/index.mjs'
+import { ciContext, DEFAULT_API, junitXml, KadeepError, resolveApi, resolveAuth, VERSION } from '../src/index.mjs'
 import { policyYaml, mcpEntry, planInit, RANGE } from '../src/ops/init.mjs'
 
 test('ciContext reads each provider, and the PR head on GitHub pull requests', () => {
@@ -54,8 +54,8 @@ test('init templates: shadow policy with the suite and locales; MCP entry pins t
   assert.match(yaml, /^mode: shadow$/m)
   assert.match(yaml, /name: "Smoke: \\"core\\""\n {4}suite: smoke/)
   assert.match(yaml, /locales: \[hi-IN, ar-AE\]/)
-  assert.equal(RANGE, '^0.1')
-  assert.deepEqual(mcpEntry({ project: 'p1', api: DEFAULT_API }), { command: 'npx', args: ['-y', 'kadeep@^0.1', 'mcp'], env: { KADEEP_PROJECT: 'p1' } })
+  assert.equal(RANGE, `^${VERSION.split('.').slice(0, 2).join('.')}`, 'the minor line of this release')
+  assert.deepEqual(mcpEntry({ project: 'p1', api: DEFAULT_API }), { command: 'npx', args: ['-y', `kadeep@${RANGE}`, 'mcp'], env: { KADEEP_PROJECT: 'p1' } })
 })
 
 test('init: the workflow is .github/workflows/releasegate.yml with a releasegate job, named after the command', () => {
@@ -64,6 +64,6 @@ test('init: the workflow is .github/workflows/releasegate.yml with a releasegate
   const wf = writes.find((w) => w.path.endsWith('.github/workflows/releasegate.yml'))
   assert.ok(wf, writes.map((w) => w.path).join(', '))
   assert.match(wf.content, /^ {2}releasegate:$/m)
-  assert.match(wf.content, /run: npx -y releasegate@\^0\.1/)
+  assert.ok(wf.content.includes(`run: npx -y releasegate@${RANGE}`))
   assert.doesNotMatch(wf.content, /KADEEP_API/, 'the default API is not written into CI')
 })

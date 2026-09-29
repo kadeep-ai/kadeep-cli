@@ -1,8 +1,9 @@
 // @ts-check
-import { resolveProject } from '../api.mjs'
+import { resolveProject, routes } from '../api.mjs'
 import { updateConfig } from '../config.mjs'
 import { usage } from '../errors.mjs'
 import { duration } from '../output.mjs'
+import { richPrompts } from '../prompt.mjs'
 import { getRun, getSuiteRun, getTest, listIssues, listProjects, listRuns, listSuiteRuns, listSuites, listTests } from '../ops/browse.mjs'
 
 /** @typedef {import('../cli.mjs').Command} Command */
@@ -19,7 +20,8 @@ const projects = {
     const rows = await listProjects(client('user'), env.KADEEP_PROJECT || config.defaults?.[api]?.project)
     out.result(rows, () => {
       if (!rows.length) return out.line('No projects yet. Create one in the KaDeep app.')
-      out.table(['', 'ID', 'NAME', 'KIND', 'URL'], rows.map((p) => [p.default ? '*' : '', p.id, p.name, p.kind, p.baseUrl ?? '']))
+      const star = out.rich ? out.c.accent(out.ui.g.dot) : '*'
+      out.table(['', 'ID', 'NAME', 'KIND', 'URL'], rows.map((p) => [p.default ? star : '', p.id, p.name, p.kind, p.baseUrl ?? '']))
     })
   }
 }
@@ -28,14 +30,23 @@ const projects = {
 const use = {
   name: 'use',
   summary: 'Set the default project for this API',
-  usage: ['kadeep use <project>          # id or name'],
-  async run({ out, client, positionals, api, env, values }) {
+  usage: ['kadeep use <project>          # id or name', 'kadeep use                    # pick from a list (type to filter)'],
+  async run({ out, client, positionals, api, env, values, config }) {
     const ref = positionals[0] ?? values.project
-    if (!ref) throw usage('Pass a project id or name: kadeep use <project>')
-    const p = await resolveProject(client('user'), { ref, env: { ...env, KADEEP_PROJECT: undefined } })
+    const rp = ref ? null : richPrompts(out)
+    if (!ref && !rp) throw usage('Pass a project id or name: kadeep use <project>')
+    const c = client('user')
+    /** @type {{ id: string, name?: string }} */
+    let p
+    if (rp) {
+      /** @type {any[]} */
+      const all = await routes.projects(c)
+      const current = config.defaults?.[api]?.project
+      p = await rp.select({ message: 'Default project', options: all.map((x) => ({ label: x.name, value: x, hint: [x.id, x.baseUrl].filter(Boolean).join('  ') })), initial: Math.max(0, all.findIndex((x) => x.id === current)) })
+    } else p = await resolveProject(c, { ref, env: { ...env, KADEEP_PROJECT: undefined } })
     updateConfig((cfg) => {
       cfg.defaults ??= {}
-      cfg.defaults[api] = { ...cfg.defaults[api], project: p.id }
+      cfg.defaults[api] = { ...cfg.defaults[api], project: p.id, projectName: p.name }
     }, env)
     out.result({ ok: true, api, project: { id: p.id, name: p.name } }, () => out.line(`Default project: ${p.name} (${p.id})`))
   }
@@ -52,7 +63,7 @@ const suites = {
     const rows = await listSuites(c, p.id)
     out.result(rows, () => {
       if (!rows.length) return out.line('No suites in this project yet.')
-      out.table(['KEY', 'TESTS', 'LAST RUN', 'NAME'], rows.map((s) => [s.key, s.tests, s.lastRunStatus ?? '', s.name]))
+      out.table(['KEY', 'TESTS', 'LAST RUN', 'NAME'], rows.map((s) => [s.key, s.tests, out.status(s.lastRunStatus), s.name]))
     })
   }
 }
@@ -88,7 +99,7 @@ const tests = {
     const rows = await listTests(c, p.id, { suite: values.suite, label: values.label, search: values.search })
     out.result(rows, () => {
       if (!rows.length) return out.line('No test cases match.')
-      out.table(['KEY', 'LAST RUN', 'PRIORITY', 'NAME'], rows.map((t) => [t.key, t.lastRunStatus ?? '', t.priority ?? '', t.name]))
+      out.table(['KEY', 'LAST RUN', 'PRIORITY', 'NAME'], rows.map((t) => [t.key, out.status(t.lastRunStatus), t.priority ?? '', t.name]))
     })
   }
 }
@@ -106,10 +117,33 @@ const runs = {
       if (!id) throw usage('Pass a run id: kadeep runs show <runId>')
       const r = await getRun(c, id)
       return out.result(r, () => {
+        /** @type {Set<string>} */
+        const said = new Set()
+        /** Each text once: the server often repeats the summary as the error. @param {string | undefined} t */
+        const fresh = (t) => {
+          const k = String(t ?? '').trim()
+          if (!k || said.has(k)) return false
+          said.add(k)
+          return true
+        }
+        if (out.rich) {
+          const { style, g } = out.ui
+          out.line(`${out.mark(r.status)} ${style.bold(r.test)}  ${out.status(r.status)}${r.verdict && r.verdict !== 'PASS' ? `  ${style.fail(r.verdict)}` : ''}  ${style.muted(`${duration(r.durationMs)} · ${r.id}`)}`)
+          if (fresh(r.summary)) out.line(`  ${r.summary}`)
+          if (fresh(r.error)) out.line(`  ${style.fail(String(r.error))}`)
+          if (fresh(r.verdictReason)) out.line(`  ${style.muted(String(r.verdictReason))}`)
+          if (r.steps.length) out.line()
+          r.steps.forEach((/** @type {any} */ s, /** @type {number} */ i) => {
+            out.line(`  ${s.ok ? style.ok(g.dot) : style.fail(g.dot)} ${style.muted(String(s.n).padStart(2))}  ${style.accent(s.tool)}${s.target ? ` ${s.target}` : ''}${s.result ? style.muted(`  ${String(s.result).split('\n')[0]}`) : ''}`)
+            if (i < r.steps.length - 1) out.line(`  ${style.muted(g.v)}`)
+          })
+          if (r.report) out.line(style.muted(`\n  report: ${r.report}`))
+          return
+        }
         out.line(`${out.mark(r.status)} ${out.c.bold(r.test)}  ${r.status}${r.verdict && r.verdict !== 'PASS' ? ` [${r.verdict}]` : ''}  ${duration(r.durationMs)}  ${out.c.dim(r.id)}`)
-        if (r.summary) out.line(r.summary)
-        if (r.error) out.line(out.c.red(r.error))
-        if (r.verdictReason) out.line(out.c.dim(r.verdictReason))
+        if (fresh(r.summary)) out.line(String(r.summary))
+        if (fresh(r.error)) out.line(out.c.red(String(r.error)))
+        if (fresh(r.verdictReason)) out.line(out.c.dim(String(r.verdictReason)))
         if (r.steps.length) out.line()
         for (const s of r.steps) out.line(`  ${String(s.n).padStart(3)}. ${s.ok ? out.c.green('ok  ') : out.c.red('FAIL')} ${s.tool}${s.target ? ` ${s.target}` : ''}${s.result ? out.c.dim(` · ${String(s.result).slice(0, 160)}`) : ''}`)
         if (r.report) out.line(out.c.dim(`\nreport: ${r.report}`))
@@ -165,7 +199,8 @@ const issues = {
     const rows = await listIssues(c, p.id, { status: values.status })
     out.result(rows, () => {
       if (!rows.length) return out.line('No issues.')
-      out.table(['ID', 'SEVERITY', 'STATUS', 'TITLE'], rows.map((i) => [i.id, i.severity, i.status, i.title]))
+      const sev = (/** @type {string} */ v) => (v === 'critical' ? out.c.red(v) : v === 'major' ? out.c.yellow(v) : out.c.muted(v))
+      out.table(['ID', 'SEVERITY', 'STATUS', 'TITLE'], rows.map((i) => [i.id, sev(i.severity), i.status, i.title]))
     })
   }
 }

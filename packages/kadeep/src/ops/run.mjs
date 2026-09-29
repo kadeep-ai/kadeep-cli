@@ -29,7 +29,17 @@ import { findSuite } from './browse.mjs'
  *   durationMs: number,
  *   error?: string
  * }} RunTestsResult
- * @typedef {{ job: any, message: string }} Progress
+ * @typedef {{
+ *   job: any,
+ *   message: string,
+ *   done?: number,
+ *   total?: number,
+ *   current?: string,
+ *   finished?: RunResult[]
+ * }} Progress
+ *   `message` is the one-line summary plain output prints. The rest drives live views: counts and the current test
+ *   from the job's progress, and `finished`, tests that completed since the last event (as each finishes on the login
+ *   lane, where the job's checkpoint names them; at the end on the CI lane).
  * @typedef {{
  *   project: string,
  *   suite?: string,
@@ -75,15 +85,21 @@ export function progressText(job) {
   return `${job?.status ?? 'unknown'}${counts}${p?.message ? ` · ${p.message}` : ''}`
 }
 
+/** @param {any} job @param {string} message @param {RunResult[]} [finished] @returns {Progress} */
+const progressOf = (job, message, finished) => ({ job, message, done: job?.progress?.done, total: job?.progress?.total, current: job?.progress?.message, ...(finished?.length ? { finished } : {}) })
+
 /**
  * Poll a job until it is done or the deadline passes. Transient failures (KaDeep unreachable, 5xx, 524) are retried:
- * the job keeps running server-side whatever happens to this connection.
+ * the job keeps running server-side whatever happens to this connection. With `resolveRun`, runs the job's checkpoint
+ * lists as completed are read as they appear, so a live view can show each result as it lands.
  * @param {() => Promise<any>} fetchJob
- * @param {{ deadline: number, onProgress?: (p: Progress) => void, signal?: AbortSignal }} opts
+ * @param {{ deadline: number, onProgress?: (p: Progress) => void, signal?: AbortSignal, resolveRun?: (id: string) => Promise<any> }} opts
  */
-async function follow(fetchJob, { deadline, onProgress, signal }) {
+async function follow(fetchJob, { deadline, onProgress, signal, resolveRun }) {
   let last = ''
   let errors = 0
+  /** @type {Set<string>} */
+  const seen = new Set()
   for (;;) {
     /** @type {any} */
     let job
@@ -96,9 +112,19 @@ async function follow(fetchJob, { deadline, onProgress, signal }) {
       continue
     }
     const message = progressText(job)
-    if (message !== last) {
+    /** @type {RunResult[]} */
+    const finished = []
+    if (resolveRun && onProgress) {
+      for (const id of job.checkpoint?.completedRunIds ?? []) {
+        if (seen.has(id)) continue
+        seen.add(id)
+        const run = await resolveRun(id).catch(() => null)
+        if (run) finished.push(fromRun(run))
+      }
+    }
+    if (message !== last || finished.length) {
       last = message
-      onProgress?.({ job, message })
+      onProgress?.(progressOf(job, message, finished))
     }
     if (job.done || JOB_DONE.has(job.status)) return job
     if (Date.now() > deadline) return { ...job, timedOut: true }
@@ -251,13 +277,16 @@ async function gather(client, project, jobs, fetchJob, base, followOpts) {
   const targets = []
   let suiteRunId
   let timedOut = false
+  // The login lane can read each finished run as the job's checkpoint names it; the CI lane only learns them at the end.
+  const resolveRun = laneOf(client) === 'session' ? (/** @type {string} */ id) => routes.run(client, id) : undefined
   for (const id of jobs) {
-    const job = await follow(() => fetchJob(id), followOpts)
+    const job = await follow(() => fetchJob(id), { ...followOpts, resolveRun })
     if (job.timedOut) {
       timedOut = true
       continue
     }
     const got = await collect(client, project, job)
+    followOpts.onProgress?.(progressOf(job, progressText(job), got.runs))
     runs.push(...got.runs)
     suiteRunId ??= got.suiteRunId
     if (got.target) targets.push(got.target)

@@ -1,11 +1,12 @@
 // @ts-check
 import { relative } from 'node:path'
 import { parseArgs } from 'node:util'
-import { ciContext, createClient, duration, EXIT, loadConfig, resolveApi, resolveAuth, USER_AGENT } from 'kadeep'
+import { ciContext, createClient, duration, EXIT, loadConfig, resolveApi, resolveAuth, ui as kui, USER_AGENT } from 'kadeep'
 import { errorReport, exitCode, runGate } from './gate.mjs'
 import { findPolicy, loadPolicy, PolicyError } from './policy.mjs'
 import { annotations, commitLine, githubSummary, verdictLine, writeReports } from './report.mjs'
 import { VERSION } from './version.mjs'
+import { gateView } from './view.mjs'
 
 /** @type {Record<string, { type: 'string' | 'boolean', short?: string }>} */
 const OPTIONS = {
@@ -76,14 +77,15 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), stdou
     return EXIT.OK
   }
   const json = Boolean(values.json)
-  const tty = Boolean(/** @type {any} */ (stdout).isTTY) && !values['no-color'] && !env.NO_COLOR
-  /** @param {string} code */
-  const paint = (code) => (/** @type {string} */ s) => (tty ? `\u001b[${code}m${s}\u001b[0m` : s)
-  const green = paint('32')
-  const red = paint('31')
-  const yellow = paint('33')
-  const dim = paint('2')
-  const bold = paint('1')
+  // kadeep's terminal UI decides once: rich on a laptop (live checklist, dots, the verdict in large dots), plain in CI
+  // and pipes (exactly the lines 0.1 printed, which CI logs and annotations rely on), or JSON.
+  const u = kui.createUi({ json, noColor: Boolean(values['no-color']), env, stdout: /** @type {any} */ (stdout), stderr: /** @type {any} */ (stderr) })
+  const { style } = u
+  const green = style.ok
+  const red = style.fail
+  const yellow = style.warn
+  const dim = style.dim
+  const bold = style.bold
   /** @param {string} [line] */
   const say = (line = '') => {
     if (!json) stdout.write(`${line}\n`)
@@ -115,6 +117,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), stdou
     }
     githubSummary(report, env)
     if (json) stdout.write(`${JSON.stringify(report, null, 2)}\n`)
+    else if (u.rich) view.finish(report, files.markdown ?? files.json ? relative(cwd, files.markdown ?? files.json) : undefined)
     else {
       if (env.GITHUB_ACTIONS === 'true') for (const a of annotations(report)) say(a)
       say()
@@ -128,6 +131,8 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), stdou
     }
     return exitCode(report)
   }
+
+  let view = gateView(u, [], stdout)
 
   /** @param {'enforce' | 'shadow'} mode @param {string} error @param {{ project?: string, policy?: string, errorExit?: number }} [extra] */
   const setupError = (mode, error, extra = {}) => finish(errorReport({ mode, api, commit, error, ...extra }), { dir: '.releasegate', junit: false, markdown: true })
@@ -170,6 +175,10 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), stdou
   }
 
   const client = createClient({ api, auth, env, userAgent: `releasegate/${VERSION} ${USER_AGENT}` })
+  if (u.rich) {
+    view = gateView(u, policy.checks, stdout)
+    view.start()
+  }
   const report = await runGate({
     policy,
     mode,
@@ -179,6 +188,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), stdou
     commit,
     onEvent: (e) => {
       if (json) return
+      if (u.rich) return view.event(e)
       if (e.type === 'start') say(`${dim('▸')} ${e.check.name}${e.check.required ? '' : dim(' (advisory)')}`)
       else if (e.type === 'progress') note(dim(`    ${e.message}`))
       else {

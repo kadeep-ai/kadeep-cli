@@ -2,31 +2,12 @@
 import { writeFileSync } from 'node:fs'
 import { EXIT, usage } from '../errors.mjs'
 import { junitXml } from '../junit.mjs'
-import { duration } from '../output.mjs'
 import { BROWSERS, runTests, VIEWPORTS } from '../ops/run.mjs'
+import { runView } from '../views/run-view.mjs'
 
 /** @typedef {import('../cli.mjs').Command} Command */
 
-/**
- * @param {import('../output.mjs').Output} out
- * @param {import('../ops/run.mjs').RunTestsResult} r
- * @param {string} [junitFile]
- */
-export function printRunResult(out, r, junitFile) {
-  if (r.status === 'queued') {
-    out.line(r.jobs.length ? `Queued: ${r.jobs.join(', ')}. Follow with: kadeep jobs show ${r.jobs[0]} --wait` : 'Started (this KaDeep server runs jobs inline). Check `kadeep runs` for the result.')
-    return
-  }
-  for (const x of r.runs) out.line(`${out.mark(x.status)} ${x.name}${x.verdict && x.verdict !== 'PASS' ? ` [${x.verdict}]` : ''}${x.error ? ` — ${x.error}` : ''}`)
-  if (r.error) out.line(out.c.red(r.error))
-  if (junitFile) out.line(out.c.dim(`JUnit written to ${junitFile}`))
-  out.line(`${r.passed}/${r.total} passed in ${duration(r.durationMs)}${r.suiteRunId ? out.c.dim(`  (suite run ${r.suiteRunId})`) : ''}`)
-}
-
-/** @param {import('../output.mjs').Output} out */
-export const progressPrinter = (out) => (/** @type {{ message: string }} */ p) => {
-  if (!out.json || process.stderr.isTTY) out.note(out.c.dim(`  ${p.message}`))
-}
+export { printRunResult } from '../views/run-view.mjs'
 
 /** @param {Record<string, any>} values */
 export function checkRunSettings(values) {
@@ -62,7 +43,9 @@ const run = {
     checkRunSettings(values)
     const c = client('run')
     const p = await project(c)
-    if (!out.json) out.note(`KaDeep: running ${values.suite ? `suite ${values.suite}` : tests.join(', ')} in ${p.name ?? p.id} on ${api} …`)
+    const what = values.suite ? `suite ${values.suite}` : tests.join(', ')
+    if (!out.json && !out.rich) out.note(`KaDeep: running ${what} in ${p.name ?? p.id} on ${api} …`)
+    const view = runView(out, { title: `${what} ${out.c.muted('·')} ${p.name ?? p.id}`, total: values.suite ? undefined : tests.length })
     const result = await runTests(c, {
       project: p.id,
       suite: values.suite,
@@ -71,10 +54,10 @@ const run = {
       viewport: values.viewport,
       wait: !values['no-wait'],
       timeoutMs: (num('timeout') ?? 30) * 60_000,
-      onProgress: progressPrinter(out)
+      onProgress: view.progress
     })
     if (values.junit && result.status !== 'queued') writeFileSync(values.junit, junitXml([{ name: result.target, error: result.error, runs: result.runs }]))
-    out.result(result, () => printRunResult(out, result, values.junit))
+    view.done(result, values.junit)
     return result.ok ? EXIT.OK : EXIT.FAILED
   }
 }

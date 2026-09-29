@@ -14,10 +14,13 @@ export { ciContext } from './ci-env.mjs'
 export { junitXml } from './junit.mjs'
 export { duration } from './output.mjs'
 export { USER_AGENT } from './http.mjs'
+/** The terminal UI (modes, palette, dots, live regions, prompts) that kadeep and releasegate draw with. */
+export * as ui from './ui/index.mjs'
 
 /**
  * @typedef {import('./ci-env.mjs').CiContext} CiContext
  * @typedef {import('./client.mjs').Client} Client
  * @typedef {import('./client.mjs').Auth} Auth
  * @typedef {import('./ops/run.mjs').RunTestsResult} RunTestsResult
+ * @typedef {import('./ops/run.mjs').Progress} Progress
  */

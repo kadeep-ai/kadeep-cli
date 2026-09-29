@@ -1,6 +1,6 @@
 {
   "name": "kadeep",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "KaDeep Studios CLI: AI end-to-end testing from your terminal, CI/CD and coding agents. Run test suites on web, mobile and desktop, read results, gate releases, and give Cursor or Claude Code KaDeep as MCP tools.",
   "keywords": [
     "kadeep",

@@ -43,6 +43,7 @@ New to KaDeep Studios? [Get started for free](https://kadeep.ai/start).
   - [Coding agents (MCP)](#coding-agents-mcp)
   - [Localization](#localization)
 - [Command reference](#command-reference)
+- [Terminal output](#terminal-output)
 - [Output for scripts and agents](#output-for-scripts-and-agents)
 - [Configuration](#configuration)
 - [Use it as a library](#use-it-as-a-library)
@@ -327,6 +328,30 @@ Global options, accepted by every command:
 
 Tool results are the same JSON as the matching command's `--json` output. `run` reports progress notifications while it waits.
 
+## Terminal output
+
+In a terminal, `kadeep` is built on the dot, the texture of the KaDeep Studios logo. It needs no dependencies.
+
+| | |
+| --- | --- |
+| **Welcome** (`kadeep` on its own): your logo, who and where you are, what to run next | <img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/welcome.png" alt="kadeep welcome screen: the KS dot logo beside the version, sign-in and project" width="440"> |
+| **Live runs**: every test is a dot (green passed, red failed, blue running), each failure the moment it happens | <img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/run.png" alt="kadeep run: a dot per test, 10 of 16 done, one failure shown with its reason" width="440"> |
+| **Setup**: arrow keys, type to filter, masked password, one step per line | <img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/init.png" alt="kadeep init wizard: project picked by filtering, files chosen, CI token confirmed" width="440"> |
+
+The same command prints differently depending on where it runs, decided once at startup:
+
+| Where | Output |
+| --- | --- |
+| A terminal | The rich view: colors, dots, live progress, boxes and arrow-key prompts |
+| CI, pipes, `TERM=dumb` | Plain lines, one per real change, with no escape sequences. This is exactly what 0.1 printed, so scripts and logs keep working |
+| `--json` | Exactly one JSON document on stdout, nothing else |
+
+- `NO_COLOR=1` or `--no-color` keeps the layout but drops colors.
+- `KADEEP_UI=plain` forces plain output; `KADEEP_UI=rich` forces the rich view (for recordings).
+- The logo animation runs once, on your first `kadeep` in a color terminal. `KADEEP_NO_ANIMATION=1` turns it off.
+- Live views draw on stderr and results go to stdout, so `kadeep run > results.txt` keeps only results.
+- Ctrl-C while waiting stops watching, not the run: `kadeep jobs show <id> --wait` picks it up again.
+
 ## Output for scripts and agents
 
 With `--json`, stdout carries exactly **one** JSON document: either the result, or an error object like `{ "ok": false, "error": "…", "code": "…" }`. Progress and prompts go to stderr, so stdout can always be parsed.
@@ -389,6 +414,8 @@ kadeep --help --json                          # every command with its usage
 | `KADEEP_CI_TOKEN` | The project's CI token |
 | `KADEEP_EMAIL` | Email for `kadeep login` |
 | `KADEEP_CONFIG_DIR` | Where the session and defaults are stored |
+| `KADEEP_UI` | `plain` or `rich`: force an output style (see [Terminal output](#terminal-output)) |
+| `KADEEP_NO_ANIMATION` | Skip the one-time logo animation |
 | `NO_COLOR` | Plain output |
 
 `TESTSTUDIOS_API` and `TESTSTUDIOS_CI_TOKEN` are read too, so pipelines set up for the older `teststudios` CLI keep working.

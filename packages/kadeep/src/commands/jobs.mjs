@@ -1,7 +1,7 @@
 // @ts-check
 import { EXIT, usage } from '../errors.mjs'
 import { jobStatus, progressText } from '../ops/run.mjs'
-import { printRunResult, progressPrinter } from './run.mjs'
+import { runView } from '../views/run-view.mjs'
 
 /** @typedef {import('../cli.mjs').Command} Command */
 
@@ -20,8 +20,9 @@ const jobs = {
       out.result(job, () => out.line(`${job.id}  ${progressText(job)}${job.error ? `  ${out.c.red(job.error)}` : ''}`))
       return EXIT.OK
     }
-    const r = /** @type {import('../ops/run.mjs').RunTestsResult} */ (await jobStatus(c, { project: projectId, jobId: positionals[1], wait: true, timeoutMs: (num('timeout') ?? 30) * 60_000, onProgress: progressPrinter(out) }))
-    out.result(r, () => printRunResult(out, r))
+    const view = runView(out, { title: `job ${positionals[1]}` })
+    const r = /** @type {import('../ops/run.mjs').RunTestsResult} */ (await jobStatus(c, { project: projectId, jobId: positionals[1], wait: true, timeoutMs: (num('timeout') ?? 30) * 60_000, onProgress: view.progress }))
+    view.done(r)
     return r.ok ? EXIT.OK : EXIT.FAILED
   }
 }

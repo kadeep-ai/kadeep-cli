@@ -44,6 +44,7 @@ report: .releasegate/report.md
 - [Verdicts and exit codes](#verdicts-and-exit-codes)
 - [CI setup](#ci-setup)
 - [Reports](#reports)
+- [Terminal output](#terminal-output)
 - [Command reference](#command-reference)
 - [How it works](#how-it-works)
 - [Use it as a library](#use-it-as-a-library)
@@ -327,6 +328,14 @@ Every run writes to `.releasegate/`, whatever the verdict, including setup error
 ```
 
 A check's `status` is one of `passed`, `failed`, `error` or `skipped` (not run after a fatal error).
+
+## Terminal output
+
+On a laptop, the gate draws a live checklist. Each check shows its tests as dots, and the verdict ends in large dots: green GO or red NO-GO.
+
+<img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/releasegate.png" alt="releasegate on a laptop: a checklist with a dot per test, the failing test, and NO-GO in large red dots" width="620">
+
+In CI the output is plain lines with no escape sequences, plus the GitHub annotations and job summary described above, so CI logs stay clean. `NO_COLOR`, `--no-color` and `KADEEP_UI=plain` work as in [`kadeep`](https://www.npmjs.com/package/kadeep#terminal-output).
 
 ## Command reference
 
