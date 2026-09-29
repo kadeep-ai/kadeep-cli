@@ -24,14 +24,17 @@ test('CI lane: async run → poll (surviving a 503) → the suite run decides; p
     ])
   })
   const progress = []
-  const r = await runTests(ci(api.url), { project: 'p1', suite: 'smoke', browser: 'firefox', onProgress: (p) => progress.push(p.message) })
+  const events = []
+  const r = await runTests(ci(api.url), { project: 'p1', suite: 'smoke', browser: 'firefox', onProgress: (p) => (progress.push(p.message), events.push(p)) })
   await api.close()
   assert.equal(r.status, 'failed')
   assert.equal(r.lane, 'ci')
   assert.deepEqual([r.passed, r.failed, r.total, r.suiteRunId, r.target], [1, 1, 2, 'sr1', 'Smoke'])
   assert.deepEqual(r.jobs, ['j1'])
   assert.equal(r.runs[1].error, 'No receipt')
-  assert.deepEqual(progress, ['running · 0/2 · Case 1 of 2', 'completed'])
+  assert.deepEqual([...new Set(progress)], ['running · 0/2 · Case 1 of 2', 'completed'])
+  assert.deepEqual([events[0].done, events[0].total, events[0].current], [0, 2, 'Case 1 of 2'], 'structured counts for live views')
+  assert.deepEqual(events.at(-1).finished.map((x) => `${x.name}:${x.status}`), ['Login:passed', 'Pay:failed'], 'the CI lane reports finished tests when the job ends')
 })
 
 test('CI lane: an API without async runs answers with the finished result, which is used as is', async () => {

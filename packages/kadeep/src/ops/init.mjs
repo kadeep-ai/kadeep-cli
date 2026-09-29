@@ -148,10 +148,10 @@ function gitignore(file) {
 }
 
 /**
- * @param {{ dir: string, api: string, project: { id: string, name?: string }, suite?: { key: string, name: string }, locales?: string[], ci: 'github' | 'none', mcp: boolean, force: boolean }} input
+ * @param {{ dir: string, api: string, project: { id: string, name?: string }, suite?: { key: string, name: string }, locales?: string[], ci: 'github' | 'none', mcp: boolean, force: boolean, gitignore?: boolean }} input
  * @returns {FileWrite[]}
  */
-export function planInit({ dir, api, project, suite, locales, ci, mcp, force }) {
+export function planInit({ dir, api, project, suite, locales, ci, mcp, force, gitignore: ignore = true }) {
   /** @type {FileWrite[]} */
   const writes = [plainFile(join(dir, 'releasegate.yml'), policyYaml({ project, suite, locales }), force)]
   if (ci === 'github') writes.push(plainFile(join(dir, '.github/workflows/releasegate.yml'), workflowYaml({ branch: defaultBranch(dir), api }), force))
@@ -159,7 +159,7 @@ export function planInit({ dir, api, project, suite, locales, ci, mcp, force }) 
     const entry = mcpEntry({ project: project.id, api })
     writes.push(mcpFile(join(dir, '.mcp.json'), entry, force), mcpFile(join(dir, '.cursor/mcp.json'), entry, force))
   }
-  writes.push(gitignore(join(dir, '.gitignore')))
+  if (ignore) writes.push(gitignore(join(dir, '.gitignore')))
   return writes
 }
 

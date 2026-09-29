@@ -3,7 +3,8 @@ import { routes } from '../api.mjs'
 import { configPath, updateConfig } from '../config.mjs'
 import { EXIT, KadeepError, usage } from '../errors.mjs'
 import { request } from '../http.mjs'
-import { ask, askHidden, interactive, readStdin } from '../prompt.mjs'
+import { ask, askHidden, interactive, readStdin, richPrompts } from '../prompt.mjs'
+import { header, withSpinner } from '../ui/index.mjs'
 
 /** @typedef {import('../cli.mjs').Command} Command */
 
@@ -14,11 +15,17 @@ const login = {
   usage: ['kadeep login [--email <email>] [--password-stdin] [--api <url>]', 'echo "$PASSWORD" | kadeep login --email you@company.com --password-stdin'],
   options: { email: { type: 'string' }, 'password-stdin': { type: 'boolean' } },
   async run({ values, out, api, env }) {
-    const email = values.email || env.KADEEP_EMAIL || (interactive() ? await ask('Email') : '')
+    // Rich terminals: the logo header, then email and a masked password as steps, and a spinner while signing in.
+    const rp = values['password-stdin'] ? null : richPrompts(out)
+    const { style, g, term } = out.ui
+    if (rp) term.stderr.write(`\n${header(term, g, style, [undefined, undefined, style.bold('Sign in to KaDeep Studios'), style.muted(api), undefined, style.muted('Your session stays on this machine, readable only by you.')]).join('\n')}\n\n`)
+    const given = values.email || env.KADEEP_EMAIL
+    if (rp && given) out.note(`${style.ok(g.dot)} Email  ${style.accent(given)}`)
+    const email = given || (rp ? await rp.text({ message: 'Email', placeholder: 'you@company.com', validate: (v) => (/^[^@\s]+@[^@\s]+$/.test(v) ? undefined : 'Enter the email you use for KaDeep Studios') }) : interactive() ? await ask('Email') : '')
     if (!email) throw usage('Pass --email <email>')
-    const password = values['password-stdin'] ? await readStdin() : await askHidden('Password')
+    const password = values['password-stdin'] ? await readStdin() : rp ? await rp.password({ message: 'Password' }) : await askHidden('Password')
     if (!password) throw usage('No password given')
-    const res = await request(`${api}/api/auth/login`, { method: 'POST', body: { email, password }, timeoutMs: 30_000 })
+    const res = await withSpinner(out.ui, 'Signing in to KaDeep Studios', () => request(`${api}/api/auth/login`, { method: 'POST', body: { email, password }, timeoutMs: 30_000 }))
     const body = (() => {
       try {
         return res.json()
@@ -35,7 +42,9 @@ const login = {
       cfg.sessions ??= {}
       cfg.sessions[api] = { accessToken: body.accessToken, refreshToken: body.refreshToken, user, savedAt: Date.now() }
     }, env)
-    out.result({ ok: true, api, user }, () => out.line(`${out.c.green('✓')} Logged in to ${api} as ${user.name ? `${user.name} <${user.email}>` : user.email}`))
+    const who = user.name ? `${user.name} <${user.email}>` : user.email
+    if (out.rich) out.result({ ok: true, api, user }, () => out.lines(['', `${style.ok(g.ok)} Signed in to KaDeep Studios as ${style.bold(who)}`, style.muted(`  next: kadeep use <project> · kadeep run --suite smoke · kadeep init`)]))
+    else out.result({ ok: true, api, user }, () => out.line(`${out.c.green('✓')} Logged in to ${api} as ${who}`))
   }
 }
 

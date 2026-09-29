@@ -9,7 +9,7 @@ import { locPull, locPush, locStatus, locValidate } from '../ops/loc.mjs'
 /** @type {Command} */
 const loc = {
   name: 'loc',
-  summary: 'Localization: push sources, pull approved translations, status, quality gate',
+  summary: 'Localization: push, pull approved work, status, quality gate',
   usage: [
     'kadeep loc push --file <path> [--translate] [--ref <branch>] [--commit <sha>]',
     'kadeep loc pull --asset <name|id> --locale <tag> [--out <path>] [--format xliff|tmx]',

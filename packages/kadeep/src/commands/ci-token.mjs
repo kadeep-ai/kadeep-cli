@@ -8,7 +8,7 @@ import { confirm, interactive } from '../prompt.mjs'
 /** @type {Command} */
 const ciToken = {
   name: 'ci-token',
-  summary: 'Create the project\'s CI token (used by `kadeep run` in CI, `kadeep loc` and releasegate)',
+  summary: 'Create the project\'s CI token (for CI, loc and releasegate)',
   usage: ['kadeep ci-token create [--yes]      # --yes replaces an existing token (pipelines using it stop working)'],
   options: { yes: { type: 'boolean', short: 'y' } },
   async run({ values, positionals, out, client, project }) {

@@ -1,9 +1,17 @@
 // @ts-check
 import { createInterface } from 'node:readline'
 import { usage } from './errors.mjs'
+import { createPrompts } from './ui/prompts.mjs'
 
 /** Prompts read the terminal and write to stderr, so they never pollute stdout. */
 export const interactive = () => Boolean(process.stdin.isTTY && process.stderr.isTTY)
+
+/**
+ * Arrow-key prompts (select with filtering, confirm, text, password) when the output is rich and interactive, or null,
+ * in which case commands use the line prompts below or require flags.
+ * @param {import('./output.mjs').Output} out
+ */
+export const richPrompts = (out) => (out.rich && out.ui.term.interactive ? createPrompts(out.ui) : null)
 
 /** @param {string} what */
 const needTty = (what) => usage(`${what} needs an interactive terminal; pass it as a flag instead.`)

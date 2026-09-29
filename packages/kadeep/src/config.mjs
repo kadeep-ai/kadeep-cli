@@ -7,7 +7,7 @@ export const DEFAULT_API = 'https://api.kadeep.ai'
 
 /**
  * @typedef {{ accessToken: string, refreshToken: string, user?: { id: string, email: string, name?: string }, savedAt?: number }} Session
- * @typedef {{ api?: string, sessions?: Record<string, Session>, defaults?: Record<string, { project?: string }> }} Config
+ * @typedef {{ api?: string, sessions?: Record<string, Session>, defaults?: Record<string, { project?: string, projectName?: string }>, ui?: { welcomeSeen?: boolean } }} Config
  */
 
 /** Where credentials live: $KADEEP_CONFIG_DIR, then $XDG_CONFIG_HOME/kadeep, %APPDATA%\kadeep on Windows, ~/.config/kadeep. */

@@ -6,7 +6,7 @@ import { serveMcp } from '../mcp.mjs'
 /** @type {Command} */
 const mcp = {
   name: 'mcp',
-  summary: 'Serve KaDeep as MCP tools on stdio for Cursor, Claude Code and other agents',
+  summary: 'KaDeep as MCP tools for Cursor, Claude Code and other agents',
   usage: [
     'kadeep mcp',
     'Claude Code:  claude mcp add kadeep -- npx -y kadeep mcp',

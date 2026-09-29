@@ -70,3 +70,14 @@ test('setup errors: bad token 2, unreachable 3, broken policy 2 (0 in shadow), m
   assert.equal(missing.status, 2)
   assert.match(missing.stdout, /Add the repository secret KADEEP_CI_TOKEN/)
 })
+
+test('rich terminal: a live checklist with dots, then the verdict in large dots; the exit code is unchanged', async () => {
+  const r = await gate(policy('  - suite: smoke\n  - suite: broken\n'), [], { KADEEP_UI: 'rich', COLORTERM: 'truecolor', NO_COLOR: '' })
+  assert.equal(r.status, 1)
+  assert.equal(r.report.verdict, 'NO-GO')
+  const out = r.stdout.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+  assert.match(out, /✖ Pay {2}DEFECT {2}Pay broke/)
+  assert.match(out, /●       ● {5}● ● ●/, 'NO-GO in large dots')
+  assert.match(out, /1 of 2 required checks passed/)
+  assert.match(r.stdout, /\u001b\[38;2;239;68;68m/, 'in the palette red')
+})

@@ -41,6 +41,7 @@
 ## Contents
 
 - [Quick start](#quick-start)
+- [What it looks like](#what-it-looks-like)
 - [Features](#features)
 - [From commit to go / no-go](#from-commit-to-go--no-go)
 - [How it works](#how-it-works)
@@ -74,6 +75,21 @@ project p_9a118f0499704752be72 · commit 8c3f2d1 on feature/checkout PR #214 · 
 NO-GO · 1/2 required checks passed · 3m 47s
 ```
 
+## What it looks like
+
+A terminal UI built on the dot, like the KaDeep Studios logo: every test is a dot, and the release verdict is drawn in dots. It has no dependencies, and output stays plain in CI.
+
+<table>
+  <tr>
+    <td><img src=".github/assets/screens/welcome.png" alt="kadeep welcome screen with the KS dot logo"></td>
+    <td><img src=".github/assets/screens/run.png" alt="kadeep run: one dot per test, a failure shown as it happens"></td>
+  </tr>
+  <tr>
+    <td><img src=".github/assets/screens/init.png" alt="kadeep init wizard with a filterable project picker"></td>
+    <td><img src=".github/assets/screens/releasegate.png" alt="releasegate: checklist with dots and NO-GO in large red dots"></td>
+  </tr>
+</table>
+
 ## Features
 
 | You want to… | Command |
@@ -89,6 +105,7 @@ NO-GO · 1/2 required checks passed · 3m 47s
 | Check localization quality in CI | `kadeep loc validate` · a `localization` check in `releasegate.yml` |
 | Script anything, parse the output | `--json` on every command, stable exit codes |
 | Publish test results to CI dashboards | `kadeep run --junit results.xml` · `releasegate` writes `junit.xml` |
+| Watch runs live in the terminal, plain in CI | Rich view in a terminal; `NO_COLOR`, `KADEEP_UI=plain` |
 
 ## From commit to go / no-go
 

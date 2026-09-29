@@ -47,7 +47,7 @@ import { VERSION } from './version.mjs'
  *   error?: string,
  *   errorExit?: number
  * }} Report
- * @typedef {{ type: 'start', check: Check } | { type: 'progress', check: Check, message: string } | { type: 'done', check: Check, result: CheckResult }} GateEvent
+ * @typedef {{ type: 'start', check: Check } | { type: 'progress', check: Check, message: string, progress: import('kadeep').Progress } | { type: 'done', check: Check, result: CheckResult }} GateEvent
  */
 
 /** Errors after which no further check can work: the token or KaDeep itself. */
@@ -68,7 +68,7 @@ async function runCheck(client, project, check, emit) {
     const v = await locValidate(client, { project, locales: rule.locales, minCoverage: rule.minCoverage, minMqm: rule.minMqm, allowUnapproved: !rule.requireApproved })
     return { ...base, status: v.ok ? 'passed' : 'failed', summary: v.ok ? `${v.locales.join(', ') || 'all locales'} ready` : v.failures.join('; '), durationMs: Date.now() - started, locales: v.locales, failures: v.failures }
   }
-  const r = await runTests(client, { project, suite: check.suite, tests: check.tests, browser: check.browser, viewport: check.viewport, timeoutMs: check.timeoutMinutes * 60_000, onProgress: (p) => emit({ type: 'progress', check, message: p.message }) })
+  const r = await runTests(client, { project, suite: check.suite, tests: check.tests, browser: check.browser, viewport: check.viewport, timeoutMs: check.timeoutMinutes * 60_000, onProgress: (p) => emit({ type: 'progress', check, message: p.message, progress: p }) })
   const status = r.ok ? 'passed' : r.status === 'failed' ? 'failed' : 'error'
   const counts = `${r.passed}/${r.total} passed`
   return { ...base, status, summary: r.error ? (r.total ? `${counts}; ${r.error}` : r.error) : counts, durationMs: Date.now() - started, target: r.target, passed: r.passed, failed: r.failed, total: r.total, suiteRunId: r.suiteRunId, jobs: r.jobs, runs: r.runs, ...(r.error ? { error: r.error } : {}) }
