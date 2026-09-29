@@ -1,17 +1,21 @@
-# kadeep
+<p align="center"><a href="https://kadeep.ai"><img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/kadeep-studios-logo.svg" alt="KaDeep Studios logo" width="80" height="80"></a></p>
 
-**Engineering release confidence.**
+# kadeep: the KaDeep Studios CLI
 
-[![npm](https://img.shields.io/npm/v/kadeep)](https://www.npmjs.com/package/kadeep)
+**Engineering release confidence.** AI end-to-end testing from your terminal, your CI/CD pipeline and your coding agents.
+
+[![npm](https://img.shields.io/npm/v/kadeep?color=0A0A0A)](https://www.npmjs.com/package/kadeep)
 [![CI](https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml)
+![Node.js 20+](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)
+![MCP server](https://img.shields.io/badge/MCP-server-6E56CF)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-The KaDeep command line. Run your [KaDeep](https://kadeep.ai) QA from a terminal, a CI pipeline or a coding agent. Anything you do with your tests in the KaDeep app, you can script:
+[KaDeep Studios](https://kadeep.ai) is an autonomous release-readiness QA agent. It runs the user journeys that make you revenue on web, mobile and desktop, and returns a go or no-go, not a test report. `kadeep` is its command line: anything you do with your tests in KaDeep Studios, you can script from a terminal, a CI job or an AI coding agent.
 
 - **Browse** projects, suites, test cases, runs and defects.
 - **Run** a suite or individual test cases and wait for the verdict, with JUnit output for CI.
 - **Read results** step by step, including why a test failed.
-- **Set up a repository** in one command: release-gate policy, GitHub Actions workflow and agent config.
+- **Set up a repository** in one command: a `releasegate` policy, a GitHub Actions workflow and agent config.
 - **Give coding agents KaDeep as tools.** `kadeep mcp` is an MCP server for Cursor, Claude Code and any other MCP client.
 - **Localization:** push source strings, pull approved translations, and check the quality gate.
 
@@ -21,6 +25,8 @@ Every command takes `--json`, and exit codes and error codes are stable, so scri
 npx kadeep login
 npx kadeep run --suite smoke
 ```
+
+New to KaDeep Studios? [Get started for free](https://kadeep.ai/start).
 
 ## Contents
 
@@ -93,7 +99,7 @@ kadeep logout                                                         # also end
 ```
 
 - The session is saved to `~/.config/kadeep/config.json`, readable only by you. `$XDG_CONFIG_HOME`, `%APPDATA%` on Windows, or `KADEEP_CONFIG_DIR` change the location.
-- It renews itself while you use it, and ends after 30 days unused, on `kadeep logout`, or when revoked in the app.
+- It renews itself while you use it, and ends after 30 days unused, on `kadeep logout`, or when revoked in KaDeep Studios.
 - Sessions are stored per API address, so a token is only ever sent to the server that issued it.
 
 ## Choosing a project
@@ -194,7 +200,7 @@ npx kadeep init
 | File | Purpose |
 | --- | --- |
 | `releasegate.yml` | Release gate policy, starting in **shadow** mode (reports, never blocks) |
-| `.github/workflows/kadeep-release-gate.yml` | Runs the gate on pull requests and pushes to your main branch |
+| `.github/workflows/releasegate.yml` | Runs `releasegate` on pull requests and pushes to your main branch |
 | `.mcp.json` / `.cursor/mcp.json` | The `kadeep` MCP server for Claude Code and Cursor, pinned to this project |
 | `.gitignore` | Ignores `.releasegate/` (the gate's reports) |
 

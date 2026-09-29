@@ -1,18 +1,24 @@
 {
   "name": "kadeep",
   "version": "0.1.0",
-  "description": "KaDeep CLI: browse projects, suites and test cases, run tests, read results and gate localization from the terminal, CI or a coding agent (MCP).",
+  "description": "KaDeep Studios CLI: AI end-to-end testing from your terminal, CI/CD and coding agents. Run test suites on web, mobile and desktop, read results, gate releases, and give Cursor or Claude Code KaDeep as MCP tools.",
   "keywords": [
     "kadeep",
+    "kadeep-studios",
+    "cli",
     "qa",
     "testing",
-    "e2e",
     "test-automation",
-    "cli",
-    "ci",
+    "e2e-testing",
+    "ai-testing",
+    "ci-cd",
+    "github-actions",
     "mcp",
+    "mcp-server",
+    "claude-code",
+    "cursor",
     "localization",
-    "release"
+    "releasegate"
   ],
   "homepage": "https://kadeep.ai",
   "repository": {

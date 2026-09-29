@@ -15,11 +15,11 @@ const hasGh = () => spawnSync('gh', ['--version'], { stdio: 'ignore' }).status =
 /** @type {Command} */
 const init = {
   name: 'init',
-  summary: 'Set up this repo: release-gate policy, CI workflow, MCP config for Cursor and Claude Code',
+  summary: 'Set up this repo: releasegate policy, CI workflow, MCP config for Cursor and Claude Code',
   usage: [
     'kadeep init                                  # interactive',
     'kadeep init --yes --project <p> --suite <key> [--ci github|none] [--no-mcp] [--no-ci-token] [--force] [--dir <path>]',
-    'Writes releasegate.yml (mode: shadow), .github/workflows/kadeep-release-gate.yml, .mcp.json, .cursor/mcp.json and a',
+    'Writes releasegate.yml (mode: shadow), .github/workflows/releasegate.yml, .mcp.json, .cursor/mcp.json and a',
     '.gitignore line. Existing files are left alone without --force. Creates the project\'s CI token only if it has none.'
   ],
   options: {
@@ -55,7 +55,7 @@ const init = {
       if (!suite) throw new KadeepError(`No suite "${values.suite}" in ${project.name}. Suites: ${suites.map((s) => s.key).join(', ') || 'none'}`, { code: 'not_found', exitCode: EXIT.USAGE })
     } else if (suites.length) {
       const preferred = Math.max(0, suites.findIndex((s) => /smoke/i.test(`${s.key} ${s.name}`)))
-      suite = ask && suites.length > 1 ? await choose('Suite the release gate runs', suites, (s) => `${s.name}  (${s.key}, ${s.flowIds?.length ?? 0} tests)`, preferred) : suites[preferred]
+      suite = ask && suites.length > 1 ? await choose('Suite for releasegate to run', suites, (s) => `${s.name}  (${s.key}, ${s.flowIds?.length ?? 0} tests)`, preferred) : suites[preferred]
     }
     const locales = project.kind === 'localization' || project.localization?.targetLocales?.length ? project.localization?.targetLocales ?? [] : []
 
