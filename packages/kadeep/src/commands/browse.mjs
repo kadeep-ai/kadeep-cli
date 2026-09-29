@@ -5,11 +5,32 @@ import { usage } from '../errors.mjs'
 import { duration } from '../output.mjs'
 import { richPrompts } from '../prompt.mjs'
 import { getRun, getSuiteRun, getTest, listIssues, listProjects, listRuns, listSuiteRuns, listSuites, listTests } from '../ops/browse.mjs'
+import { ago, openHint, printRun, printSuiteRun, printTest, when } from '../views/details.mjs'
 
 /** @typedef {import('../cli.mjs').Command} Command */
 
-/** @param {string | undefined} iso */
-const when = (iso) => (iso ? iso.replace('T', ' ').slice(0, 16) : '')
+/**
+ * `show` without an id: in an interactive terminal, pick one from the list instead of copying an id.
+ * @template T
+ * @param {import('../output.mjs').Output} out
+ * @param {string} what  for the usage error outside a terminal
+ * @param {() => Promise<Array<{ label: string, value: T, hint?: string }>>} load
+ * @returns {Promise<T>}
+ */
+async function pickOne(out, what, load) {
+  const rp = richPrompts(out)
+  if (!rp) throw usage(what)
+  const options = await load()
+  if (!options.length) throw usage(`Nothing to show yet. ${what}`)
+  return rp.select({ message: 'Open', options, maxVisible: 10 })
+}
+
+/** A run as a picker option. @param {import('../output.mjs').Output} out */
+export const runOption = (out) => (/** @type {ReturnType<typeof import('../ops/browse.mjs').runRow>} */ r) => ({
+  label: `${out.mark(r.status)} ${r.test}`,
+  value: r.id,
+  hint: [r.verdict && r.verdict !== 'PASS' ? r.verdict : r.status, ago(r.startedAt), duration(r.durationMs), r.id.slice(0, 10)].filter(Boolean).join(' · ')
+})
 
 /** @type {Command} */
 const projects = {
@@ -73,33 +94,22 @@ const tests = {
   name: 'tests',
   aliases: ['flows', 'test-cases'],
   summary: 'List test cases, or show one',
-  usage: ['kadeep tests [--suite <key>] [--label <label>] [--search <text>]', 'kadeep tests show <test>        # key, id or name'],
+  usage: ['kadeep tests [--suite <key>] [--label <label>] [--search <text>]', 'kadeep tests show [<test>]      # key, id or name; without one, pick from the list'],
   options: { suite: { type: 'string' }, label: { type: 'string' }, search: { type: 'string' } },
   async run({ out, client, project, positionals, values }) {
     const c = client('user')
     const p = await project(c)
     if (positionals[0] === 'show') {
-      const key = positionals[1]
-      if (!key) throw usage('Pass a test: kadeep tests show <test>')
+      const key = positionals[1] ?? (await pickOne(out, 'Pass a test: kadeep tests show <test>', async () => (await listTests(c, p.id)).map((t) => ({ label: t.name, value: t.key, hint: [t.lastRunStatus, t.key].filter(Boolean).join(' · ') }))))
       const t = await getTest(c, p.id, key)
-      return out.result(t, () => {
-        out.line(`${out.c.bold(t.name)}  ${out.c.dim(t.key)}${t.priority ? `  ${t.priority}` : ''}${t.labels.length ? `  [${t.labels.join(', ')}]` : ''}`)
-        if (t.description) out.line(t.description)
-        out.line()
-        out.line(t.instructions ?? '')
-        if (t.steps?.length) {
-          out.line()
-          t.steps.forEach((/** @type {string} */ s, /** @type {number} */ i) => out.line(`  ${i + 1}. ${s}`))
-        }
-        if (t.expected) out.line(`\nExpected: ${t.expected}`)
-        out.line(out.c.dim(`\nlast run: ${t.lastRunStatus ?? 'never'}${t.lastRunId ? ` (${t.lastRunId})` : ''}`))
-      })
+      return out.result(t, () => printTest(out, t))
     }
     if (positionals[0] && positionals[0] !== 'list') throw usage(`Unknown subcommand "${positionals[0]}". Use: kadeep tests [list] | kadeep tests show <test>`)
     const rows = await listTests(c, p.id, { suite: values.suite, label: values.label, search: values.search })
     out.result(rows, () => {
       if (!rows.length) return out.line('No test cases match.')
       out.table(['KEY', 'LAST RUN', 'PRIORITY', 'NAME'], rows.map((t) => [t.key, out.status(t.lastRunStatus), t.priority ?? '', t.name]))
+      openHint(out, 'kadeep tests show <key>')
     })
   }
 }
@@ -108,46 +118,14 @@ const tests = {
 const runs = {
   name: 'runs',
   summary: 'Recent test runs, or one run step by step',
-  usage: ['kadeep runs [--test <key>] [--limit <n>]', 'kadeep runs show <runId>'],
+  usage: ['kadeep runs [--test <key>] [--limit <n>]', 'kadeep runs show [<runId>]      # without an id, pick from the list'],
   options: { test: { type: 'string' }, limit: { type: 'string' } },
   async run({ out, client, project, positionals, values, num }) {
     const c = client('user')
     if (positionals[0] === 'show') {
-      const id = positionals[1]
-      if (!id) throw usage('Pass a run id: kadeep runs show <runId>')
+      const id = positionals[1] ?? (await pickOne(out, 'Pass a run id: kadeep runs show <runId>', async () => (await listRuns(c, (await project(c)).id, { test: values.test, limit: 30 })).map(runOption(out))))
       const r = await getRun(c, id)
-      return out.result(r, () => {
-        /** @type {Set<string>} */
-        const said = new Set()
-        /** Each text once: the server often repeats the summary as the error. @param {string | undefined} t */
-        const fresh = (t) => {
-          const k = String(t ?? '').trim()
-          if (!k || said.has(k)) return false
-          said.add(k)
-          return true
-        }
-        if (out.rich) {
-          const { style, g } = out.ui
-          out.line(`${out.mark(r.status)} ${style.bold(r.test)}  ${out.status(r.status)}${r.verdict && r.verdict !== 'PASS' ? `  ${style.fail(r.verdict)}` : ''}  ${style.muted(`${duration(r.durationMs)} · ${r.id}`)}`)
-          if (fresh(r.summary)) out.line(`  ${r.summary}`)
-          if (fresh(r.error)) out.line(`  ${style.fail(String(r.error))}`)
-          if (fresh(r.verdictReason)) out.line(`  ${style.muted(String(r.verdictReason))}`)
-          if (r.steps.length) out.line()
-          r.steps.forEach((/** @type {any} */ s, /** @type {number} */ i) => {
-            out.line(`  ${s.ok ? style.ok(g.dot) : style.fail(g.dot)} ${style.muted(String(s.n).padStart(2))}  ${style.accent(s.tool)}${s.target ? ` ${s.target}` : ''}${s.result ? style.muted(`  ${String(s.result).split('\n')[0]}`) : ''}`)
-            if (i < r.steps.length - 1) out.line(`  ${style.muted(g.v)}`)
-          })
-          if (r.report) out.line(style.muted(`\n  report: ${r.report}`))
-          return
-        }
-        out.line(`${out.mark(r.status)} ${out.c.bold(r.test)}  ${r.status}${r.verdict && r.verdict !== 'PASS' ? ` [${r.verdict}]` : ''}  ${duration(r.durationMs)}  ${out.c.dim(r.id)}`)
-        if (fresh(r.summary)) out.line(String(r.summary))
-        if (fresh(r.error)) out.line(out.c.red(String(r.error)))
-        if (fresh(r.verdictReason)) out.line(out.c.dim(String(r.verdictReason)))
-        if (r.steps.length) out.line()
-        for (const s of r.steps) out.line(`  ${String(s.n).padStart(3)}. ${s.ok ? out.c.green('ok  ') : out.c.red('FAIL')} ${s.tool}${s.target ? ` ${s.target}` : ''}${s.result ? out.c.dim(` · ${String(s.result).slice(0, 160)}`) : ''}`)
-        if (r.report) out.line(out.c.dim(`\nreport: ${r.report}`))
-      })
+      return out.result(r, () => printRun(out, r))
     }
     if (positionals[0] && positionals[0] !== 'list') throw usage(`Unknown subcommand "${positionals[0]}". Use: kadeep runs [list] | kadeep runs show <runId>`)
     const p = await project(c)
@@ -155,6 +133,7 @@ const runs = {
     out.result(rows, () => {
       if (!rows.length) return out.line('No runs yet.')
       out.table(['', 'ID', 'STARTED', 'TOOK', 'VERDICT', 'TEST'], rows.map((r) => [out.mark(r.status), r.id, when(r.startedAt), duration(r.durationMs), r.verdict ?? r.status, r.test]))
+      openHint(out, 'kadeep runs show <id>')
     })
   }
 }
@@ -163,25 +142,22 @@ const runs = {
 const suiteRuns = {
   name: 'suite-runs',
   summary: 'Recent suite runs, or one suite run\'s results',
-  usage: ['kadeep suite-runs [--suite <key>] [--limit <n>]', 'kadeep suite-runs show <suiteRunId>'],
+  usage: ['kadeep suite-runs [--suite <key>] [--limit <n>]', 'kadeep suite-runs show [<suiteRunId>]'],
   options: { suite: { type: 'string' }, limit: { type: 'string' } },
   async run({ out, client, project, positionals, values, num }) {
     const c = client('user')
     const p = await project(c)
     if (positionals[0] === 'show') {
-      const id = positionals[1]
-      if (!id) throw usage('Pass a suite run id: kadeep suite-runs show <id>')
+      const id = positionals[1] ?? (await pickOne(out, 'Pass a suite run id: kadeep suite-runs show <id>', async () => (await listSuiteRuns(c, p.id, { suite: values.suite, limit: 30 })).map((r) => ({ label: `${out.mark(r.status)} ${r.suite}`, value: r.id, hint: `${r.passed} passed · ${r.failed} failed · ${ago(r.startedAt)}` }))))
       const sr = await getSuiteRun(c, p.id, id)
-      return out.result(sr, () => {
-        out.line(`${out.mark(sr.status)} ${out.c.bold(sr.suite)}  ${sr.passed} passed, ${sr.failed} failed  ${out.c.dim(sr.id)}`)
-        for (const r of sr.runs ?? []) out.line(`  ${out.mark(r.status)} ${r.name}${r.verdict && r.verdict !== 'PASS' ? ` [${r.verdict}]` : ''}${r.error ? out.c.dim(` · ${r.error}`) : ''}  ${out.c.dim(r.id)}`)
-      })
+      return out.result(sr, () => printSuiteRun(out, sr))
     }
     if (positionals[0] && positionals[0] !== 'list') throw usage(`Unknown subcommand "${positionals[0]}".`)
     const rows = await listSuiteRuns(c, p.id, { suite: values.suite, limit: num('limit') })
     out.result(rows, () => {
       if (!rows.length) return out.line('No suite runs yet.')
       out.table(['', 'ID', 'STARTED', 'PASSED', 'FAILED', 'SUITE'], rows.map((r) => [out.mark(r.status), r.id, when(r.startedAt), r.passed, r.failed, r.suite]))
+      openHint(out, 'kadeep suite-runs show <id>')
     })
   }
 }

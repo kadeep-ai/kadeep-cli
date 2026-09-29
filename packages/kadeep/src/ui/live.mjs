@@ -9,14 +9,20 @@ const SHOW = '\u001b[?25h'
  * keeps only results; lines are cut to the terminal width so a redraw never wraps. The cursor is hidden while it runs
  * and always shown again: on stop, on exit, and on Ctrl-C (after `onInterrupt`, the process exits with 130).
  *
+ * Inside the interactive session the session owns Ctrl-C (stdin is in raw mode, so no SIGINT arrives): the region
+ * registers itself on `term.session.lives` so the session can clear it when the user interrupts a command, and it
+ * never starts once that command's signal has aborted.
+ *
  * Only for rich mode; callers check `term.mode` first.
  *
  * @param {import('./term.mjs').Term} term
- * @param {{ fps?: number, onInterrupt?: () => void }} [opts]
+ * @param {{ fps?: number, onInterrupt?: () => void, exitOnInterrupt?: boolean }} [opts]
  */
 export function createLive(term, opts = {}) {
   const out = term.stderr
   const every = Math.round(1000 / (opts.fps ?? 12))
+  const session = term.session
+  const exitOnInterrupt = opts.exitOnInterrupt ?? !session
   let rendered = 0
   let tick = 0
   let active = false
@@ -44,11 +50,12 @@ export function createLive(term, opts = {}) {
     /** Start drawing `fn(tick)` about 12 times a second. @param {(tick: number) => string[]} fn */
     start(fn) {
       render = fn
-      if (active) return live
+      if (active || session?.signal?.aborted) return live
       active = true
       out.write(HIDE)
       process.once('exit', restore)
-      process.on('SIGINT', onSigint)
+      if (exitOnInterrupt) process.on('SIGINT', onSigint)
+      session?.lives.add(live)
       paint(render(tick++))
       timer = setInterval(() => paint(render(tick++)), every)
       timer.unref?.()
@@ -65,6 +72,7 @@ export function createLive(term, opts = {}) {
      * @param {NodeJS.WritableStream} [stream]
      */
     print(lines, stream = term.stdout) {
+      if (session?.signal?.aborted) return live
       if (active && rendered) {
         out.write(`\u001b[${rendered}F\u001b[J`)
         rendered = 0
@@ -83,6 +91,7 @@ export function createLive(term, opts = {}) {
       out.write(SHOW)
       process.off('SIGINT', onSigint)
       process.off('exit', restore)
+      session?.lives.delete(live)
     },
     get active() {
       return active

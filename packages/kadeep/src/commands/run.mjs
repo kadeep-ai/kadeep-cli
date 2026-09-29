@@ -36,29 +36,38 @@ const run = {
     'no-wait': { type: 'boolean' },
     timeout: { type: 'string' }
   },
-  async run({ values, out, client, project, api, num }) {
+  async run({ values, out, client, project, api, num, signal }) {
     const tests = [...(values.test ?? []), ...(values.flow ?? [])]
     if (!values.suite && !tests.length) throw usage('Pass --suite <key> or at least one --test <key>')
     if (values.suite && tests.length) throw usage('Pass --suite or --test, not both')
     checkRunSettings(values)
     const c = client('run')
     const p = await project(c)
-    const what = values.suite ? `suite ${values.suite}` : tests.join(', ')
-    if (!out.json && !out.rich) out.note(`KaDeep: running ${what} in ${p.name ?? p.id} on ${api} …`)
-    const view = runView(out, { title: `${what} ${out.c.muted('·')} ${p.name ?? p.id}`, total: values.suite ? undefined : tests.length })
-    const result = await runTests(c, {
-      project: p.id,
-      suite: values.suite,
-      tests,
-      browser: values.browser,
-      viewport: values.viewport,
-      wait: !values['no-wait'],
-      timeoutMs: (num('timeout') ?? 30) * 60_000,
-      onProgress: view.progress
-    })
-    if (values.junit && result.status !== 'queued') writeFileSync(values.junit, junitXml([{ name: result.target, error: result.error, runs: result.runs }]))
-    view.done(result, values.junit)
+    const result = await runAndShow(out, c, { project: p, api, suite: values.suite, tests, browser: values.browser, viewport: values.viewport, wait: !values['no-wait'], timeoutMs: (num('timeout') ?? 30) * 60_000, junit: values.junit, signal })
     return result.ok ? EXIT.OK : EXIT.FAILED
+  }
+}
+
+/**
+ * Run and show it: the live view while it runs, the JUnit file, the verdict. `kadeep run` and the interactive
+ * session both use it; aborting `signal` stops waiting (the run carries on on KaDeep) and clears the view.
+ * @param {import('../output.mjs').Output} out
+ * @param {import('../client.mjs').Client} c
+ * @param {{ project: { id: string, name?: string }, api: string, suite?: string, tests?: string[], browser?: string, viewport?: string, wait?: boolean, timeoutMs?: number, junit?: string, signal?: AbortSignal, label?: string }} o
+ */
+export async function runAndShow(out, c, o) {
+  const tests = o.tests ?? []
+  const what = o.label ?? (o.suite ? `suite ${o.suite}` : tests.join(', '))
+  if (!out.json && !out.rich) out.note(`KaDeep: running ${what} in ${o.project.name ?? o.project.id} on ${o.api} …`)
+  const view = runView(out, { title: `${what} ${out.c.muted('·')} ${o.project.name ?? o.project.id}`, total: o.suite ? undefined : tests.length })
+  try {
+    const result = await runTests(c, { project: o.project.id, suite: o.suite, tests, browser: o.browser, viewport: o.viewport, wait: o.wait, timeoutMs: o.timeoutMs, onProgress: view.progress, signal: o.signal })
+    if (o.junit && result.status !== 'queued') writeFileSync(o.junit, junitXml([{ name: result.target, error: result.error, runs: result.runs }]))
+    view.done(result, o.junit)
+    return result
+  } catch (err) {
+    view.stop()
+    throw err
   }
 }
 

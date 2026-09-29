@@ -76,7 +76,7 @@ test('rich terminal: a live checklist with dots, then the verdict in large dots;
   assert.equal(r.status, 1)
   assert.equal(r.report.verdict, 'NO-GO')
   const out = r.stdout.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
-  assert.match(out, /✖ Pay {2}DEFECT {2}Pay broke/)
+  assert.match(out, /✖ Pay {2}DEFECT\n {4}Pay broke\n/)
   assert.match(out, /●       ● {5}● ● ●/, 'NO-GO in large dots')
   assert.match(out, /1 of 2 required checks passed/)
   assert.match(r.stdout, /\u001b\[38;2;239;68;68m/, 'in the palette red')

@@ -12,6 +12,8 @@
 
 [KaDeep Studios](https://kadeep.ai) is an autonomous release-readiness QA agent. It runs the user journeys that make you revenue on web, mobile and desktop, and returns a go or no-go, not a test report. `kadeep` is its command line: anything you do with your tests in KaDeep Studios, you can script from a terminal, a CI job or an AI coding agent.
 
+- **Work from one place.** Type `kadeep` for an interactive home in your terminal, like Claude Code: talk to the KaDeep agent, `/` for commands, search as you type, and open any run without copying an id.
+- **Ask the KaDeep agent** the same questions you ask in KaDeep Studios, from the home or with `kadeep ask`. It can also act: run tests, drive the browser, file defects.
 - **Browse** projects, suites, test cases, runs and defects.
 - **Run** a suite or individual test cases and wait for the verdict, with JUnit output for CI.
 - **Read results** step by step, including why a test failed.
@@ -22,8 +24,8 @@
 Every command takes `--json`, and exit codes and error codes are stable, so scripts and agents can rely on the output.
 
 ```sh
-npx kadeep login
-npx kadeep run --suite smoke
+npx kadeep                     # the interactive home: sign in, pick a project, then ask or type /
+npx kadeep run --suite smoke   # or one command at a time
 ```
 
 New to KaDeep Studios? [Get started for free](https://kadeep.ai/start).
@@ -32,6 +34,8 @@ New to KaDeep Studios? [Get started for free](https://kadeep.ai/start).
 
 - [Install](#install)
 - [Quick start](#quick-start)
+- [The kadeep home](#the-kadeep-home)
+- [Ask the KaDeep agent](#ask-the-kadeep-agent)
 - [Signing in](#signing-in)
 - [Choosing a project](#choosing-a-project)
 - [Usage](#usage)
@@ -81,6 +85,67 @@ KaDeep: running suite smoke in Acme web on https://api.kadeep.ai …
 ✗ Checkout works [DEFECT] — Expected "Order placed" to be visible
 2/3 passed in 1m 12s  (suite run sr_1cb5eb20b855)
 ```
+
+## The kadeep home
+
+Run `kadeep` on its own in a terminal and you land in a session you drive everything from, in the style of Claude Code. The first time, it signs you in and asks for a project; after that it opens on the prompt.
+
+<p align="center"><img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/home.png" alt="The kadeep home: the KS dot logo with the signed-in user and project, a prompt with the slash-command palette open" width="720"></p>
+
+| You type | What happens |
+| --- | --- |
+| A question or a task, then enter | The [KaDeep agent](#ask-the-kadeep-agent) answers, streamed into the terminal |
+| `/` | The command palette. Keep typing to filter; ↑↓ and enter run the highlighted command |
+| A name (`checkout`) | Matching test cases, suites and recent runs appear below the prompt. ↓ then enter opens one |
+| `/runs`, `/suites`, `/tests`, `/suite-runs`, `/issues` | A list to pick from with the arrow keys (type to filter). Opening an item shows it with what you can do next |
+| `/run` | Pick a suite or a test case and watch it run, dot by dot |
+| `/project` | Switch project. `/chats` continues an earlier conversation, `/new` starts a fresh one, `/open` lists what the agent ran or made |
+| Any `kadeep` command | Works too, with or without the slash: `/runs show r_…`, `/run --suite smoke --viewport mobile`, `/init` |
+
+Every record opens with its next steps, so you never copy an id:
+
+| Screen | Next steps |
+| --- | --- |
+| A run | Ask the agent why it failed · run the test again · open the test case · open its suite run |
+| A test case | Run it · its recent runs · its last run · ask the agent about it |
+| A suite | Run it · its test cases · its suite runs |
+| A finished run | Open the failed run · ask the agent about the failures · run it again |
+| An issue | Open the run that found it · open the test case · ask the agent about it |
+
+| Key | Does |
+| --- | --- |
+| `shift+tab` | Switch the agent between **agent**, **plan** and **ask** mode (shown under the prompt) |
+| `esc` | Interrupt what is running; in a list, go back one screen |
+| `↑` | What you typed before |
+| `ctrl+c` | Clear the line; twice on an empty line, exit (as does `/exit` or `ctrl+d`) |
+
+Interrupting never cancels work on KaDeep: a run you stop watching carries on, and `/runs` shows its result later.
+
+## Ask the KaDeep agent
+
+The agent in KaDeep Studios' chat is also in your terminal. It knows your project: its test cases, runs, defects and app. It can answer questions, and in agent mode it acts: it runs tests, drives a browser, writes test cases and files defects.
+
+<p align="center"><img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/agent.png" alt="The KaDeep agent answering why a test failed, with the tools it used and the defect it filed" width="720"></p>
+
+```sh
+kadeep                                                   # then just type your question
+kadeep ask "Why did the checkout test fail yesterday?"   # one question from a script
+kadeep ask --mode ask "Which suites cover payments?"     # answers only, changes nothing
+kadeep ask --mode plan "Cover the new tenant picker"     # proposes a plan to approve first
+kadeep ask --json "Summarize today's failures" | jq -r .text
+```
+
+| Mode | What the agent does |
+| --- | --- |
+| `agent` (default) | Answers and acts: runs tests, drives the browser, writes test cases, files defects |
+| `plan` | Proposes a plan. In the terminal you approve it (it then carries it out), keep planning, or reject it |
+| `ask` | Only answers. It changes nothing |
+
+- **Questions from the agent** appear as prompts: a choice, a text answer, or a username and masked password when it needs to sign in to your app. Ctrl-C skips the question.
+- Conversations are saved in the project, so they also appear in KaDeep Studios. Continue one with `/chats` in the home, or `kadeep ask --chat <id> "…"`.
+- The agent uses the model key set in KaDeep Studios (Settings → Models). If the key is missing or out of credits, `kadeep` says so before sending.
+- Things only the web app can act on are named, not hidden: an email draft to send or a campaign to approve shows a line saying to open KaDeep Studios.
+- In a script (no terminal), `kadeep ask` prints the reply on stdout exactly as written, and what the agent did (tools, runs, defects) on stderr. The agent's questions are skipped there.
 
 ## Signing in
 
@@ -156,6 +221,7 @@ kadeep jobs show job_8ad6a6bb92 --wait                 # follow it to the verdic
 kadeep runs                                   # recent runs: status, verdict, duration
 kadeep runs --test checkout-works --limit 50
 kadeep runs show r_bf6382d90aab               # each step, the verdict and its reason, the report
+kadeep runs show                              # no id: pick the run from a list (in a terminal)
 kadeep suite-runs --suite smoke               # suite runs with pass / fail counts
 kadeep suite-runs show sr_1cb5eb20b855        # every test in that suite run
 kadeep issues --status new                    # defects KaDeep filed
@@ -276,7 +342,7 @@ Global options, accepted by every command:
 | `kadeep use <project>` | | Set the default project for this API |
 | `kadeep suites` | | Suites with key, test count and last result |
 | `kadeep tests [list]` | `--suite <key>`, `--label <label>`, `--search <text>` | Test cases. Aliases: `flows`, `test-cases` |
-| `kadeep tests show <test>` | | One test case in full |
+| `kadeep tests show [<test>]` | | One test case in full. Without one, pick it from a list |
 
 ### Runs and results
 
@@ -285,10 +351,17 @@ Global options, accepted by every command:
 | `kadeep run` | `--suite <key>` or `--test <key>` (repeatable), `--browser <engine>`, `--viewport <size>`, `--junit <file>`, `--no-wait`, `--timeout <minutes>` | Run and wait for the verdict. Engines: `chromium`, `chrome`, `msedge`, `firefox`, `webkit`. Viewports: `desktop`, `laptop`, `tablet`, `mobile` |
 | `kadeep jobs show <jobId>` | `--wait`, `--timeout <minutes>` | A queued or running job; `--wait` follows it to the verdict |
 | `kadeep runs [list]` | `--test <key>`, `--limit <n>` (default 20) | Recent runs |
-| `kadeep runs show <runId>` | | One run, step by step |
+| `kadeep runs show [<runId>]` | | One run, step by step. Without an id, pick it from a list |
 | `kadeep suite-runs [list]` | `--suite <key>`, `--limit <n>` (default 20) | Recent suite runs |
-| `kadeep suite-runs show <id>` | | A suite run's results |
+| `kadeep suite-runs show [<id>]` | | A suite run's results. Without an id, pick it from a list |
 | `kadeep issues` | `--status new\|dismissed\|closed` | Defects. Alias: `defects` |
+
+### KaDeep agent
+
+| Command | Options | What it does |
+| --- | --- | --- |
+| `kadeep` | | In a terminal: the [interactive home](#the-kadeep-home). Elsewhere: this help |
+| `kadeep ask "<message>"` | `--mode agent\|plan\|ask`, `--chat <id>` | Ask the [KaDeep agent](#ask-the-kadeep-agent) and stream its answer. `--json` returns `{ chatId, text, tools, runs, issues, tests, artifacts, plan }` |
 
 ### Setup and CI
 
@@ -334,7 +407,7 @@ In a terminal, `kadeep` is built on the dot, the texture of the KaDeep Studios l
 
 | | |
 | --- | --- |
-| **Welcome** (`kadeep` on its own): your logo, who and where you are, what to run next | <img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/welcome.png" alt="kadeep welcome screen: the KS dot logo beside the version, sign-in and project" width="440"> |
+| **Home** (`kadeep` on its own): your logo, who and where you are, and the prompt you drive everything from | <img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/home.png" alt="kadeep home: the KS dot logo beside the version, sign-in and project, with the command palette open" width="440"> |
 | **Live runs**: every test is a dot (green passed, red failed, blue running), each failure the moment it happens | <img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/run.png" alt="kadeep run: a dot per test, 10 of 16 done, one failure shown with its reason" width="440"> |
 | **Setup**: arrow keys, type to filter, masked password, one step per line | <img src="https://raw.githubusercontent.com/kadeep-ai/kadeep-cli/main/.github/assets/screens/init.png" alt="kadeep init wizard: project picked by filtering, files chosen, CI token confirmed" width="440"> |
 
@@ -342,7 +415,7 @@ The same command prints differently depending on where it runs, decided once at 
 
 | Where | Output |
 | --- | --- |
-| A terminal | The rich view: colors, dots, live progress, boxes and arrow-key prompts |
+| A terminal | The rich view: colors, dots, live progress, boxes and arrow-key prompts. `kadeep` alone opens the [home](#the-kadeep-home) |
 | CI, pipes, `TERM=dumb` | Plain lines, one per real change, with no escape sequences. This is exactly what 0.1 printed, so scripts and logs keep working |
 | `--json` | Exactly one JSON document on stdout, nothing else |
 
@@ -350,6 +423,7 @@ The same command prints differently depending on where it runs, decided once at 
 - `KADEEP_UI=plain` forces plain output; `KADEEP_UI=rich` forces the rich view (for recordings).
 - The logo animation runs once, on your first `kadeep` in a color terminal. `KADEEP_NO_ANIMATION=1` turns it off.
 - Live views draw on stderr and results go to stdout, so `kadeep run > results.txt` keeps only results.
+- Long text (run summaries, the agent's replies) is word-wrapped to the terminal, never cut mid-word.
 - Ctrl-C while waiting stops watching, not the run: `kadeep jobs show <id> --wait` picks it up again.
 
 ## Output for scripts and agents
@@ -439,6 +513,7 @@ console.log(result.status, `${result.passed}/${result.total}`)
 Also exported:
 - **Data:** `getTest`, `listRuns`, `getRun`, `listSuiteRuns`, `getSuiteRun`, `listIssues`, `listProjects`, `listSuites`
 - **Jobs and localization:** `jobStatus`, `locPush`, `locPull`, `locStatus`, `locValidate`
+- **The agent:** `createChat` (send a message, follow the streamed turn, answer its questions, approve plans), `MODES`
 - **Helpers:** `ciContext` (commit, branch and PR from the CI environment), `junitXml`
 - **Errors:** `KadeepError`, whose `code` and `exitCode` match the tables above
 
@@ -452,6 +527,8 @@ Also exported:
 | `This needs the project's CI token` | Set `KADEEP_CI_TOKEN` (`kadeep ci-token create`) |
 | `The CI token was rejected` | The token was replaced or belongs to another project; check `--project` |
 | `Could not reach …` | Network, proxy or `--api` address |
+| `Add your OpenRouter API key …` | The agent needs a model key: add it in KaDeep Studios (Settings → Models) |
+| `… went quiet for 60s in the middle of a reply` | The connection to the agent dropped. Ask again; the conversation is kept |
 
 Set `KADEEP_DEBUG=1` to print a stack trace for unexpected errors. Found a bug? [Open an issue](https://github.com/kadeep-ai/kadeep-cli/issues).
 

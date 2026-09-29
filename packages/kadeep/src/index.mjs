@@ -16,6 +16,7 @@ export { duration } from './output.mjs'
 export { USER_AGENT } from './http.mjs'
 /** The terminal UI (modes, palette, dots, live regions, prompts) that kadeep and releasegate draw with. */
 export * as ui from './ui/index.mjs'
+export { createChat, MODES, llmProblem } from './agent/chat.mjs'
 
 /**
  * @typedef {import('./ci-env.mjs').CiContext} CiContext

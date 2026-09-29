@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { policyYaml } from '../../kadeep/src/ops/init.mjs'
 import { annotations, exitCode, junit, markdown, parsePolicy, PolicyError } from '../src/index.mjs'
+import { metaLines } from '../src/view.mjs'
 
 const ok = (text) => parsePolicy(text, 'releasegate.yml')
 const problems = (text) => {
@@ -124,4 +125,11 @@ test('contract: the policy `kadeep init` writes always parses here, in shadow mo
   assert.deepEqual(full.checks[1].localization, { requireApproved: true, locales: ['hi-IN', 'ar-AE'], minCoverage: 100 })
   // A project without suites gets `checks: []`, which the gate reports as a policy problem (non-blocking in shadow mode).
   assert.throws(() => parsePolicy(policyYaml({ project: { id: 'p1' } })), (e) => e instanceof PolicyError && e.mode === 'shadow')
+})
+
+test('the gate context line breaks between parts on a narrow terminal, never inside one', () => {
+  const parts = ['project KaDeep CLI demo', 'commit fc5f6aa on main', 'mode enforce', 'https://api.kadeep.ai']
+  assert.deepEqual(metaLines(parts, 80), ['project KaDeep CLI demo · commit fc5f6aa on main · mode enforce', 'https://api.kadeep.ai'])
+  assert.deepEqual(metaLines(parts, 200), [parts.join(' · ')])
+  assert.ok(metaLines(parts, 30).every((l) => l.length <= 30))
 })

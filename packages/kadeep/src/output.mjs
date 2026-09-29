@@ -11,7 +11,7 @@ import { pad, truncate, width } from './ui/style.mjs'
  * - Plain mode (pipes, CI, TERM=dumb) prints exactly what 0.1 printed: no escape sequences unless FORCE_COLOR.
  * - Rich mode adds color, KaDeep's dots and live views. Progress always goes to stderr.
  *
- * @param {{ json?: boolean, noColor?: boolean, accent?: 'testing' | 'loc', env?: NodeJS.ProcessEnv, stdout?: NodeJS.WriteStream, stderr?: NodeJS.WriteStream, stdin?: NodeJS.ReadStream }} [opts]
+ * @param {{ json?: boolean, noColor?: boolean, accent?: 'testing' | 'loc', env?: NodeJS.ProcessEnv, stdout?: NodeJS.WriteStream, stderr?: NodeJS.WriteStream, stdin?: NodeJS.ReadStream, session?: import('./ui/term.mjs').Session }} [opts]
  */
 export function createOutput(opts = {}) {
   const ui = createUi(opts)
@@ -19,6 +19,8 @@ export function createOutput(opts = {}) {
   const json = term.mode === 'json'
   const { stdout, stderr } = term
   const c = { green: style.ok, red: style.fail, yellow: style.warn, dim: style.dim, bold: style.bold, cyan: style.accent, accent: style.accent, muted: style.muted }
+  // In the interactive session, a command the user interrupted goes quiet: nothing it finishes later is printed.
+  const quiet = () => Boolean(term.session?.signal?.aborted)
   const out = {
     json,
     ui,
@@ -26,27 +28,29 @@ export function createOutput(opts = {}) {
     c,
     /** A command's result: JSON on --json, otherwise whatever `human` prints. @param {unknown} data @param {() => void} [human] */
     result(data, human) {
+      if (quiet()) return
       if (json) stdout.write(`${JSON.stringify(data, null, 2)}\n`)
       else if (human) human()
     },
     /** @param {string} [line] */
     line(line = '') {
-      if (!json) stdout.write(`${line}\n`)
+      if (!json && !quiet()) stdout.write(`${line}\n`)
     },
     /** @param {string[]} lines */
     lines(lines) {
-      if (!json && lines.length) stdout.write(`${lines.join('\n')}\n`)
+      if (!json && !quiet() && lines.length) stdout.write(`${lines.join('\n')}\n`)
     },
     /** Progress and notes: stderr, so stdout stays machine-readable. @param {string} line */
     note(line) {
-      stderr.write(`${line}\n`)
+      if (!quiet()) stderr.write(`${line}\n`)
     },
     /** @param {string} line */
     warn(line) {
-      stderr.write(`${c.yellow(ui.rich ? g.warn : '!')} ${line}\n`)
+      if (!quiet()) stderr.write(`${c.yellow(ui.rich ? g.warn : '!')} ${line}\n`)
     },
     /** @param {{ message: string, code?: string, details?: unknown }} err */
     error(err) {
+      if (quiet()) return
       if (json) stdout.write(`${JSON.stringify({ ok: false, error: err.message, code: err.code ?? 'error', ...(err.details && typeof err.details === 'object' ? { details: err.details } : {}) }, null, 2)}\n`)
       else stderr.write(`${c.red(ui.rich ? g.fail : '✗')} ${err.message}\n`)
     },
@@ -68,7 +72,7 @@ export function createOutput(opts = {}) {
      * @param {Array<Array<unknown>>} rows
      */
     table(headers, rows) {
-      if (json || !rows.length) return
+      if (json || quiet() || !rows.length) return
       const cells = [headers, ...rows.map((r) => r.map((v) => (v === undefined || v === null ? '' : String(v))))]
       const widths = headers.map((_, i) => Math.max(...cells.map((r) => width(r[i] ?? ''))))
       const max = stdout.columns || 120

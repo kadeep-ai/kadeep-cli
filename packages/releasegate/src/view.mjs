@@ -1,7 +1,7 @@
 // @ts-check
 import { duration, ui as kui } from 'kadeep'
 
-const { bigText, box, clock, createLive, dotStrip, pad, pulse, truncate, width } = kui
+const { bigText, box, clock, createLive, dotStrip, pad, pulse, truncate, width, wrap } = kui
 
 /**
  * The gate in a rich terminal (a laptop, never CI): a live checklist where each check shows its tests as dots, then
@@ -97,7 +97,15 @@ export function gateView(u, checks, stdout) {
         live.stop({ keep: true })
       }
       const failing = report.checks.flatMap((c) => (c.runs ?? []).filter((x) => x.status !== 'passed').map((x) => ({ check: c.name, ...x })))
-      if (failing.length) print(['', ...failing.map((f) => `  ${style.fail(g.fail)} ${f.name}${f.verdict && f.verdict !== 'PASS' ? `  ${style.fail(f.verdict)}` : ''}${f.error ? style.muted(`  ${String(f.error).split('\n')[0]}`) : ''}`)])
+      // Each failure: the test and its verdict, then why, word-wrapped under it (never cut mid-word by the terminal).
+      if (failing.length)
+        print([
+          '',
+          ...failing.flatMap((f) => [
+            truncate(`  ${style.fail(g.fail)} ${style.bold(f.name)}${f.verdict && f.verdict !== 'PASS' ? `  ${style.fail(f.verdict)}` : ''}`, term.columns - 1),
+            ...(f.error ? wrap(String(f.error), term.columns - 1, { indent: '    ', maxLines: 3 }).map((l) => style.muted(l)) : [])
+          ])
+        ])
 
       const shadow = report.mode === 'shadow'
       const paint = report.verdict === 'GO' ? style.ok : shadow ? style.warn : style.fail
@@ -115,4 +123,30 @@ export function gateView(u, checks, stdout) {
       print(['', `  ${bits.join(style.muted(' · '))}`, ''])
     }
   }
+}
+
+/**
+ * The gate's context line (project · commit · mode · API) for a terminal `max` columns wide: parts are kept whole and
+ * the line breaks between them.
+ * @param {string[]} parts
+ * @param {number} max
+ */
+export function metaLines(parts, max) {
+  /** @type {string[]} */
+  const lines = []
+  let line = ''
+  for (const part of parts) {
+    if (line && width(`${line} · ${part}`) <= max) line = `${line} · ${part}`
+    else {
+      if (line) lines.push(line)
+      if (width(part) <= max) line = part
+      else {
+        const pieces = wrap(part, max)
+        lines.push(...pieces.slice(0, -1))
+        line = pieces[pieces.length - 1] ?? ''
+      }
+    }
+  }
+  if (line) lines.push(line)
+  return lines
 }

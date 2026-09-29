@@ -1,6 +1,6 @@
 {
   "name": "releasegate",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "KaDeep Release Gate for CI/CD: runs the KaDeep Studios checks your policy requires for every commit and returns a go / no-go, not a test report. Works with GitHub Actions, GitLab CI, CircleCI and more.",
   "keywords": [
     "releasegate",
@@ -49,7 +49,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "kadeep": "^0.2.0",
+    "kadeep": "^0.3.0",
     "yaml": "^2.6.0"
   },
   "scripts": {

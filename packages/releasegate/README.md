@@ -79,7 +79,7 @@ Commit both files and the gate runs on your next pull request.
 
 **By hand:**
 
-1. Create the project's CI token (`npx kadeep ci-token create`, or in KaDeep Studios under Settings → CI) and store it as the CI secret `KADEEP_CI_TOKEN`.
+1. Create the project's CI token (`npx kadeep ci-token create`, or in KaDeep Studios under Settings → Connect) and store it as the CI secret `KADEEP_CI_TOKEN`.
 2. Add `releasegate.yml`:
 
    ```yaml

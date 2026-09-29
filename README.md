@@ -35,7 +35,7 @@
 
 | Package | Command | What it does |
 | --- | --- | --- |
-| [`kadeep`](packages/kadeep#readme) | `kadeep` | The KaDeep Studios command line and MCP server. Browse projects, suites and test cases; run them and read results; gate localization; set up a repository; and let Cursor, Claude Code and other AI coding agents use KaDeep as tools. `--json` on every command. |
+| [`kadeep`](packages/kadeep#readme) | `kadeep` | The KaDeep Studios command line and MCP server. Type `kadeep` for an interactive home: talk to the KaDeep agent, `/` for commands, search, open any run without copying an id. Browse projects, suites and test cases; run them and read results; gate localization; set up a repository; and let Cursor, Claude Code and other AI coding agents use KaDeep as tools. `--json` on every command. |
 | [`releasegate`](packages/releasegate#readme) | `releasegate` | **KaDeep Release Gate**, a go / no-go quality gate for CI/CD. It reads `releasegate.yml`, runs the KaDeep Studios checks the policy requires for the current commit, writes a report and passes or fails the build. It has a non-blocking shadow mode for first-time setup. |
 
 ## Contents
@@ -56,15 +56,15 @@
 You need **Node.js 20+** and a KaDeep Studios account ([get started for free](https://kadeep.ai/start)).
 
 ```sh
-npx kadeep login                 # sign in with your KaDeep Studios account
-npx kadeep run --suite smoke     # run a test suite and wait for the verdict
+npx kadeep                       # the interactive home: sign in, pick a project, then ask the agent or type /
+npx kadeep run --suite smoke     # or one command at a time: run a suite and wait for the verdict
 npx kadeep init                  # add a releasegate policy + GitHub Actions workflow to this repo
 ```
 
 After `kadeep init`, every pull request runs `npx releasegate` and gets a go / no-go:
 
 ```
-KaDeep Release Gate 0.1.0 · Engineering release confidence.
+KaDeep Release Gate 0.3.0 · Engineering release confidence.
 project p_9a118f0499704752be72 · commit 8c3f2d1 on feature/checkout PR #214 · mode enforce
 ▸ Smoke
 ✓ Smoke: 12/12 passed (2m 41s)
@@ -81,11 +81,11 @@ A terminal UI built on the dot, like the KaDeep Studios logo: every test is a do
 
 <table>
   <tr>
-    <td><img src=".github/assets/screens/welcome.png" alt="kadeep welcome screen with the KS dot logo"></td>
-    <td><img src=".github/assets/screens/run.png" alt="kadeep run: one dot per test, a failure shown as it happens"></td>
+    <td><img src=".github/assets/screens/home.png" alt="The kadeep home: the KS dot logo, the signed-in project and the slash-command palette"></td>
+    <td><img src=".github/assets/screens/agent.png" alt="The KaDeep agent in the terminal explaining why a test failed"></td>
   </tr>
   <tr>
-    <td><img src=".github/assets/screens/init.png" alt="kadeep init wizard with a filterable project picker"></td>
+    <td><img src=".github/assets/screens/run.png" alt="kadeep run: one dot per test, a failure shown as it happens"></td>
     <td><img src=".github/assets/screens/releasegate.png" alt="releasegate: checklist with dots and NO-GO in large red dots"></td>
   </tr>
 </table>
@@ -94,9 +94,11 @@ A terminal UI built on the dot, like the KaDeep Studios logo: every test is a do
 
 | You want to… | Command |
 | --- | --- |
+| Drive everything from one place in the terminal, like Claude Code | `kadeep` (the interactive home) |
+| Ask the KaDeep agent why something failed, or have it act | Type the question in the home, or `kadeep ask "…"` |
 | Run AI end-to-end tests from the terminal | `kadeep run --suite smoke` |
 | Run specific test cases on another browser or screen size | `kadeep run --test checkout-works --browser firefox --viewport mobile` |
-| See why a test failed, step by step | `kadeep runs show <runId>` |
+| See why a test failed, step by step | `/runs` in the home, then pick the run · `kadeep runs show <runId>` |
 | Browse projects, suites, test cases and defects | `kadeep projects` · `kadeep suites` · `kadeep tests` · `kadeep issues` |
 | Block a release when required checks fail | `npx releasegate` in CI |
 | Try the gate first without blocking anyone | `mode: shadow` in `releasegate.yml` |

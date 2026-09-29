@@ -66,3 +66,68 @@ export function request(url, opts = {}) {
     req.end()
   })
 }
+
+/**
+ * A streaming request (Server-Sent Events from the KaDeep agent). A 2xx response's body goes to `onData` piece by
+ * piece as it arrives and the promise resolves when the server ends it; any other status is buffered and returned
+ * like `request()` does, so the caller can turn it into an error. There is no overall timeout, since an agent turn
+ * can take many minutes: the request fails after `idleMs` without a byte (the API pings every 15 s) or when `signal`
+ * aborts.
+ * @param {string} url
+ * @param {HttpOptions & { idleMs?: number }} opts
+ * @param {(text: string) => void} onData
+ * @returns {Promise<HttpResponse>}
+ */
+export function stream(url, opts, onData) {
+  const target = new URL(url)
+  const lib = target.protocol === 'https:' ? https : http
+  const payload = opts.body === undefined ? undefined : Buffer.from(typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body))
+  /** @type {Record<string, string>} */
+  const headers = { 'user-agent': opts.userAgent ?? USER_AGENT, accept: 'text/event-stream', ...(payload ? { 'content-type': 'application/json', 'content-length': String(payload.length) } : {}), ...opts.headers }
+  const idleMs = opts.idleMs ?? 60_000
+  return new Promise((resolve, reject) => {
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let idle
+    const quiet = () => {
+      clearTimeout(idle)
+      idle = setTimeout(() => req.destroy(new KadeepError(`${target.origin} went quiet for ${Math.round(idleMs / 1000)}s in the middle of a reply`, { code: 'timeout', exitCode: EXIT.NETWORK })), idleMs)
+    }
+    const req = lib.request(target, { method: opts.method ?? 'POST', headers }, (res) => {
+      const status = res.statusCode ?? 0
+      res.on('error', (err) => fail(err))
+      if (status < 200 || status >= 300) {
+        /** @type {Buffer[]} */
+        const chunks = []
+        res.on('data', (c) => chunks.push(c))
+        res.on('end', () => {
+          clearTimeout(idle)
+          const body = Buffer.concat(chunks)
+          resolve({ status, headers: res.headers, body, text: () => body.toString('utf8'), json: () => JSON.parse(body.toString('utf8')) })
+        })
+        return
+      }
+      res.setEncoding('utf8')
+      res.on('data', (text) => {
+        quiet()
+        onData(String(text))
+      })
+      res.on('end', () => {
+        clearTimeout(idle)
+        const body = Buffer.alloc(0)
+        resolve({ status, headers: res.headers, body, text: () => '', json: () => null })
+      })
+    })
+    /** @param {Error & { code?: string }} err */
+    function fail(err) {
+      clearTimeout(idle)
+      if (err instanceof KadeepError) return reject(err)
+      if (opts.signal?.aborted) return reject(new KadeepError('Cancelled', { code: 'cancelled', exitCode: EXIT.FAILED }))
+      reject(new KadeepError(`Could not reach ${target.origin}: ${err.code ?? err.message}`, { code: 'network', exitCode: EXIT.NETWORK }))
+    }
+    req.on('error', fail)
+    if (opts.signal?.aborted) return req.destroy(new Error('aborted'))
+    opts.signal?.addEventListener('abort', () => req.destroy(new Error('aborted')), { once: true })
+    quiet()
+    req.end(payload)
+  })
+}

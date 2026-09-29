@@ -6,7 +6,7 @@ import { errorReport, exitCode, runGate } from './gate.mjs'
 import { findPolicy, loadPolicy, PolicyError } from './policy.mjs'
 import { annotations, commitLine, githubSummary, verdictLine, writeReports } from './report.mjs'
 import { VERSION } from './version.mjs'
-import { gateView } from './view.mjs'
+import { gateView, metaLines } from './view.mjs'
 
 /** @type {Record<string, { type: 'string' | 'boolean', short?: string }>} */
 const OPTIONS = {
@@ -148,7 +148,11 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), stdou
   const mode = asMode(flagMode) ?? asMode(env.RELEASEGATE_MODE) ?? policy.mode
   const project = values.project ?? policy.project ?? env.KADEEP_PROJECT
   const shownPolicy = relative(cwd, policy.file) || policy.file
-  say(dim([project ? `project ${project}` : '', commitLine({ commit }), `mode ${mode}`, api].filter(Boolean).join(' · ')))
+  if (u.rich) {
+    // On a laptop: the project by name when kadeep knows it, and the line broken between its parts, never inside one.
+    const name = Object.values(config.defaults ?? {}).find((d) => d?.project === project && d.projectName)?.projectName
+    for (const l of metaLines([project ? `project ${name ?? project}` : '', commitLine({ commit }), `mode ${mode}`, api].filter(Boolean), u.term.columns - 1)) say(dim(l))
+  } else say(dim([project ? `project ${project}` : '', commitLine({ commit }), `mode ${mode}`, api].filter(Boolean).join(' · ')))
   if (!project) return setupError(mode, `No project: set project: in ${shownPolicy} (or KADEEP_PROJECT, or --project).`, { policy: policy.file })
 
   const ciToken = env.KADEEP_CI_TOKEN || env.TESTSTUDIOS_CI_TOKEN

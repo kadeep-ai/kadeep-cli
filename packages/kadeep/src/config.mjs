@@ -1,4 +1,5 @@
 // @ts-check
+import { randomUUID } from 'node:crypto'
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -7,7 +8,7 @@ export const DEFAULT_API = 'https://api.kadeep.ai'
 
 /**
  * @typedef {{ accessToken: string, refreshToken: string, user?: { id: string, email: string, name?: string }, savedAt?: number }} Session
- * @typedef {{ api?: string, sessions?: Record<string, Session>, defaults?: Record<string, { project?: string, projectName?: string }>, ui?: { welcomeSeen?: boolean } }} Config
+ * @typedef {{ api?: string, sessions?: Record<string, Session>, defaults?: Record<string, { project?: string, projectName?: string }>, ui?: { welcomeSeen?: boolean }, clientId?: string }} Config
  */
 
 /** Where credentials live: $KADEEP_CONFIG_DIR, then $XDG_CONFIG_HOME/kadeep, %APPDATA%\kadeep on Windows, ~/.config/kadeep. */
@@ -68,4 +69,22 @@ export function updateConfig(mutate, env = process.env) {
   mutate(next)
   saveConfig(next, env)
   return next
+}
+
+/**
+ * This machine's id for the KaDeep agent (`cli-<uuid>`): the agent keeps one working session (its browser, pending
+ * questions) per client, as it does per browser tab in the web app. Made once and kept in the config.
+ */
+export function clientId(env = process.env) {
+  const known = loadConfig(env).clientId
+  if (known) return known
+  const id = `cli-${randomUUID()}`
+  try {
+    updateConfig((cfg) => {
+      cfg.clientId ??= id
+    }, env)
+    return loadConfig(env).clientId ?? id
+  } catch {
+    return id
+  }
 }
