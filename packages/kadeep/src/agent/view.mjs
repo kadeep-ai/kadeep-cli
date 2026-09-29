@@ -18,6 +18,30 @@ import { createMarkdown } from './markdown.mjs'
 
 const TERMINAL = new Set(['passed', 'failed', 'stopped', 'cancelled', 'error'])
 
+/**
+ * What of a text event is new on screen. `delta`s add to the reply; the closing `token` is the whole answer, which is
+ * usually the last round of what already streamed (earlier rounds, like "Let me check the run…", are not in it), so
+ * it adds nothing then. It adds its text when nothing streamed (the answer came in one piece) or when it continues
+ * what did (a reply recovered after a dropped connection).
+ * @param {{ streamed: string }} state
+ * @param {AgentEvent} e
+ */
+export function newText(state, e) {
+  const t = String(e.text ?? '')
+  if (e.type === 'delta') {
+    state.streamed += t
+    return t
+  }
+  if (state.streamed.trim().endsWith(t.trim())) return ''
+  if (t.startsWith(state.streamed)) {
+    const rest = t.slice(state.streamed.length)
+    state.streamed = t
+    return rest
+  }
+  state.streamed += `\n\n${t}`
+  return `\n\n${t}`
+}
+
 /** A tool call in words, the way the web app labels it. @param {AgentEvent} e */
 export function describeTool(e) {
   const a = e.args ?? {}
@@ -60,19 +84,18 @@ export function turnView(out, opts = {}) {
   const once = (key) => (said.has(key) ? false : (said.add(key), true))
 
   if (!out.rich) {
-    let seen = ''
+    const text = { streamed: '' }
     let wroteText = false
     /** @param {string} line */
     const note = (line) => {
       if (!out.json) out.note(line)
     }
     return {
-      /** @param {AgentEvent} e @param {Turn} turn */
-      event(e, turn) {
+      /** @param {AgentEvent} e */
+      event(e) {
         if (out.json) return
         if (e.type === 'delta' || e.type === 'token') {
-          const fresh = turn.text.startsWith(seen) ? turn.text.slice(seen.length) : `\n${turn.text}`
-          seen = turn.text
+          const fresh = newText(text, e)
           if (fresh) {
             term.stdout.write(fresh)
             wroteText = true
@@ -87,7 +110,7 @@ export function turnView(out, opts = {}) {
       /** @param {Turn} turn */
       done(turn) {
         if (out.json) return
-        if (wroteText && !seen.endsWith('\n')) term.stdout.write('\n')
+        if (wroteText && !text.streamed.endsWith('\n')) term.stdout.write('\n')
         if (turn.stopped) note('Stopped.')
       }
     }
@@ -95,7 +118,7 @@ export function turnView(out, opts = {}) {
 
   const cols = () => Math.max(20, term.stdout.columns || term.columns)
   const md = createMarkdown(style, g, () => cols() - 2)
-  let seen = ''
+  const text = { streamed: '' }
   let pending = ''
   let first = true
   let label = 'Thinking'
@@ -137,14 +160,12 @@ export function turnView(out, opts = {}) {
   }
 
   return {
-    /** @param {AgentEvent} e @param {Turn} turn */
-    event(e, turn) {
+    /** @param {AgentEvent} e */
+    event(e) {
       switch (e.type) {
         case 'delta':
         case 'token': {
-          const fresh = turn.text.startsWith(seen) ? turn.text.slice(seen.length) : `\n${turn.text}`
-          seen = turn.text
-          pending += fresh
+          pending += newText(text, e)
           const parts = pending.split('\n')
           pending = /** @type {string} */ (parts.pop())
           for (const l of parts) printText(md.line(l))
@@ -212,6 +233,11 @@ export function turnView(out, opts = {}) {
         case 'compaction':
           act(style.muted('Earlier messages were summarized to keep the conversation small.'))
           break
+        case 'reconnecting':
+          running.clear()
+          label = 'Waiting for the answer on KaDeep'
+          act(`${style.warn(g.warn)} ${style.muted('The connection to KaDeep dropped. The agent keeps working there; its answer will show here when it is saved.')}`)
+          break
         case 'provider':
           act(style.muted(`Switched to ${e.model ?? e.to}`))
           break
@@ -265,6 +291,8 @@ function plainLine(e, once) {
       return once(`artifact:${e.artifact?.id}`) ? `  saved: ${e.artifact?.title ?? e.artifact?.fileName ?? ''}` : ''
     case 'plan':
       return `\nPlan: ${e.plan?.title ?? ''}\n${e.plan?.markdown ?? ''}`
+    case 'reconnecting':
+      return '! The connection to KaDeep dropped; waiting for the saved answer.'
     case 'llm':
       return `! ${e.message ?? 'The model call failed.'}`
     case 'error':

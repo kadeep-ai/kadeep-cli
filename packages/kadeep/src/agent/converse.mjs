@@ -24,9 +24,9 @@ export async function converse(out, chat, message, opts = {}) {
     .send(message, {
       signal: opts.signal,
       approvedPlan: opts.approvedPlan,
-      onEvent: (e, t) => {
+      onEvent: (e) => {
         queue = queue.then(async () => {
-          if (e.type !== 'hitl') return view.event(e, t)
+          if (e.type !== 'hitl') return view.event(e)
           view.pause()
           try {
             const reply = await askHitl(out, e)

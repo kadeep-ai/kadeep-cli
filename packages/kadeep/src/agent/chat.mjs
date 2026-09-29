@@ -34,8 +34,10 @@ import { createSseParser } from './sse.mjs'
  *   error?: string,
  *   llm?: { code: string, message: string, source?: string },
  *   meter?: any,
- *   stopped: boolean
+ *   stopped: boolean,
+ *   recovered?: boolean
  * }} Turn
+ *   `recovered`: the connection dropped mid-turn and the answer was read from the saved chat afterwards.
  */
 
 /** @type {AgentMode[]} */
@@ -46,6 +48,18 @@ export const MODE_HELP = { agent: 'acts: runs tests, drives the browser, files i
 
 /** The history the web app sends with a turn: the last 12 messages that have text. */
 const HISTORY = 12
+
+/** How long to wait for a turn's saved answer after the connection to it dropped. */
+const RECOVER_MS = 15 * 60_000
+
+const pollMs = () => Number(process.env.KADEEP_POLL_MS) || 3000
+
+/** @param {number} ms @param {AbortSignal} [signal] */
+const sleep = (ms, signal) =>
+  new Promise((resolve) => {
+    const t = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => (clearTimeout(t), resolve(undefined)), { once: true })
+  })
 
 /**
  * Fold one event into the turn's record (the text so far, tool calls, and what the agent made).
@@ -65,7 +79,8 @@ export function absorb(turn, e) {
       turn.text += String(e.text ?? '')
       break
     case 'token':
-      turn.text = String(e.text ?? '')
+      // The final answer. It replaces the text as the web app does, unless it is empty (nothing new to say).
+      if (e.text) turn.text = String(e.text)
       break
     case 'tool':
       upsert(turn.tools, { id: e.id, name: e.name, ...(e.args ? { args: e.args } : {}), ...(e.result !== undefined ? { result: e.result, ok: e.ok } : {}) })
@@ -121,6 +136,28 @@ export function createChat(client, opts) {
   /** @type {HistoryItem[]} */
   let history = []
 
+  /**
+   * After a dropped connection: poll the chat until the turn's answer is saved (the chat then holds more messages
+   * than before the turn, ending with the agent's), or until the wait runs out.
+   * @param {string} id
+   * @param {number} before  messages with text the chat had before this turn
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<string | undefined>}
+   */
+  async function recover(id, before, signal) {
+    const deadline = Date.now() + RECOVER_MS
+    while (Date.now() < deadline && !signal?.aborted) {
+      await sleep(pollMs(), signal)
+      if (signal?.aborted) return undefined
+      /** @type {any} */
+      const c = await routes.chats.get(client, id).catch(() => null)
+      const rows = (c?.messages ?? []).filter((/** @type {any} */ m) => m.text && (m.role === 'user' || m.role === 'agent'))
+      const last = rows[rows.length - 1]
+      if (rows.length >= before + 2 && last?.role === 'agent') return String(last.text)
+    }
+    return undefined
+  }
+
   const chat = {
     get chatId() {
       return chatId
@@ -148,19 +185,42 @@ export function createChat(client, opts) {
       if (!chatId) chatId = (await routes.chats.create(client, { projectId: opts.project, mode: turnMode })).id
       /** @type {Turn} */
       const turn = { chatId, mode: turnMode, text: '', tools: [], runs: [], issues: [], flows: [], artifacts: [], stopped: false }
-      const parser = createSseParser((e) => {
+      let started = false
+      /** @param {AgentEvent} e */
+      const emit = (e) => {
         absorb(turn, e)
         o.onEvent?.(e, turn)
+      }
+      const parser = createSseParser((e) => {
+        started = true
+        emit(e)
       })
       const body = { message, projectId: opts.project, chatId, clientId: opts.clientId, mode: turnMode, attachments: [], history: history.filter((h) => h.text).slice(-HISTORY), ...(o.approvedPlan ? { approvedPlan: o.approvedPlan } : {}) }
       try {
         await routes.agent.chat(client, body, (text) => parser.push(text), { signal: o.signal })
       } catch (err) {
-        if (!o.signal?.aborted) throw err
-        turn.stopped = true
-        await chat.stop()
+        if (o.signal?.aborted) {
+          turn.stopped = true
+          await chat.stop()
+        } else if (started && err instanceof KadeepError && (err.code === 'network' || err.code === 'timeout')) {
+          // The connection dropped mid-turn. KaDeep keeps working (a turn is not tied to its connection) and saves the
+          // answer to the chat when it is done, so wait for it there instead of losing it.
+          emit({ type: 'reconnecting', message: err.message })
+          const text = await recover(chatId, history.filter((h) => h.text).length, o.signal)
+          if (o.signal?.aborted) {
+            turn.stopped = true
+            await chat.stop()
+          } else if (text === undefined) throw err
+          else {
+            emit({ type: 'token', text })
+            emit({ type: 'done' })
+            turn.recovered = true
+          }
+        } else throw err
       }
-      history.push({ role: 'user', text: o.approvedPlan ? `Approved plan: ${o.approvedPlan.title}` : message }, { role: 'agent', text: turn.text || (turn.stopped ? 'Stopped.' : '') })
+      // Mirror what KaDeep saves (an agent message without text is not counted), so a dropped turn can be recovered
+      // by counting the chat's messages.
+      history.push({ role: 'user', text: o.approvedPlan ? `Approved plan: ${o.approvedPlan.title}` : message }, { role: 'agent', text: turn.text })
       return turn
     },
 

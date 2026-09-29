@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { createClient } from '../src/index.mjs'
 import { createChat, llmProblem } from '../src/agent/chat.mjs'
 import { createSseParser } from '../src/agent/sse.mjs'
+import { newText } from '../src/agent/view.mjs'
 import { fakeApi, sse } from './fake-api.mjs'
 
 const BIN = new URL('../bin/kadeep.mjs', import.meta.url).pathname
@@ -156,4 +157,47 @@ test('kadeep ask: the reply on stdout as it streams, what the agent did on stder
   await api.close()
   assert.equal(blocked.status, 2)
   assert.match(blocked.stderr, /Add your OpenRouter API key/)
+})
+
+test('a dropped connection mid-turn does not lose the answer: KaDeep keeps going, and the saved reply is shown', async () => {
+  process.env.KADEEP_POLL_MS = '20'
+  let polls = 0
+  const api = await fakeApi({
+    'POST /api/chats': () => [200, { id: 'c1' }],
+    'POST /api/agent/chat': () => (res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      res.write('data: {"type":"mode","mode":"agent"}\n\ndata: {"type":"delta","text":"Looking at the run"}\n\n')
+      setTimeout(() => res.socket.destroy(), 30)
+    },
+    'GET /api/chats/c1': () => (++polls < 3 ? [200, { id: 'c1', messages: [] }] : [200, { id: 'c1', messages: [{ role: 'user', text: 'why?' }, { role: 'agent', text: 'Looking at the run: the heading moved.' }] }])
+  })
+  const chat = createChat(person(api.url), { project: 'p1', clientId: 'cli-test' })
+  const seen = []
+  const t = await chat.send('why?', { onEvent: (e) => seen.push(e.type) })
+  await api.close()
+  assert.equal(t.recovered, true)
+  assert.equal(t.text, 'Looking at the run: the heading moved.')
+  assert.deepEqual(seen.slice(-3), ['reconnecting', 'token', 'done'])
+  assert.ok(polls >= 3, 'waited for the answer to be saved')
+})
+
+test('a connection that fails before the turn starts is an error, not a wait', async () => {
+  const api = await fakeApi({ 'POST /api/chats': () => [200, { id: 'c1' }], 'POST /api/agent/chat': () => (res) => res.socket.destroy() })
+  const chat = createChat(person(api.url), { project: 'p1', clientId: 'cli-test' })
+  await assert.rejects(chat.send('hi'), (e) => e.code === 'network')
+  await api.close()
+})
+
+test('the closing token never prints the answer twice: it is usually the last round of what already streamed', () => {
+  const said = (events) => {
+    const st = { streamed: '' }
+    return events.map((e) => newText(st, e)).join('')
+  }
+  const d = (text) => ({ type: 'delta', text })
+  const tok = (text) => ({ type: 'token', text })
+  assert.equal(said([d('Let me check the run.'), d('The heading moved.'), tok('The heading moved.')]), 'Let me check the run.The heading moved.', 'last round already shown')
+  assert.equal(said([tok('All in one piece.')]), 'All in one piece.', 'nothing streamed: the token is the answer')
+  assert.equal(said([d('Looking at the run'), tok('Looking at the run: the heading moved.')]), 'Looking at the run: the heading moved.', 'a recovered answer continues the partial one')
+  assert.equal(said([d('Checking.'), tok('A different final answer.')]), 'Checking.\n\nA different final answer.')
+  assert.equal(said([d('Done.'), tok('')]), 'Done.')
 })
