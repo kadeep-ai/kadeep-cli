@@ -55,7 +55,7 @@ report: .releasegate/report.md
 Requires **Node.js 20 or newer** and a KaDeep project. Usually nothing needs installing: CI runs it with `npx`.
 
 ```sh
-npx -y releasegate@^0.1            # in CI
+npx -y releasegate@^0.4            # in CI
 npm install -D releasegate         # or pin it in your project
 ```
 
@@ -90,7 +90,7 @@ Commit both files and the gate runs on your next pull request.
      - suite: smoke
    ```
 
-3. Run `npx -y releasegate@^0.1` in CI with `KADEEP_CI_TOKEN` set (see [CI setup](#ci-setup)).
+3. Run `npx -y releasegate@^0.4` in CI with `KADEEP_CI_TOKEN` set (see [CI setup](#ci-setup)).
 
 Check the policy locally without running anything: `npx releasegate --dry-run`.
 
@@ -217,7 +217,7 @@ Advisory checks (`required: false`) appear in the report and annotations but nev
 
 ## CI setup
 
-In every case: Node.js 20+, the secret `KADEEP_CI_TOKEN`, and `npx -y releasegate@^0.1`.
+In every case: Node.js 20+, the secret `KADEEP_CI_TOKEN`, and `npx -y releasegate@^0.4`.
 
 **GitHub Actions**:
 
@@ -238,7 +238,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx -y releasegate@^0.1
+      - run: npx -y releasegate@^0.4
         env:
           KADEEP_CI_TOKEN: ${{ secrets.KADEEP_CI_TOKEN }}
       - uses: actions/upload-artifact@v4
@@ -255,7 +255,7 @@ On GitHub the gate also adds the Markdown report to the job summary and annotate
 ```yaml
 releasegate:
   image: node:22
-  script: npx -y releasegate@^0.1
+  script: npx -y releasegate@^0.4
   artifacts:
     when: always
     paths: [.releasegate/]
@@ -271,7 +271,7 @@ jobs:
     docker: [{ image: cimg/node:22.0 }]
     steps:
       - checkout
-      - run: npx -y releasegate@^0.1
+      - run: npx -y releasegate@^0.4
       - store_test_results: { path: .releasegate }
       - store_artifacts: { path: .releasegate }
 ```
@@ -285,7 +285,7 @@ pipelines:
       - step:
           image: node:22
           script:
-            - npx -y releasegate@^0.1
+            - npx -y releasegate@^0.4
           artifacts: [.releasegate/**]
 ```
 

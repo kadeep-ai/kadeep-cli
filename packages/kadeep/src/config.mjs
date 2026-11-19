@@ -8,7 +8,8 @@ export const DEFAULT_API = 'https://api.kadeep.ai'
 
 /**
  * @typedef {{ accessToken: string, refreshToken: string, user?: { id: string, email: string, name?: string }, savedAt?: number }} Session
- * @typedef {{ api?: string, sessions?: Record<string, Session>, defaults?: Record<string, { project?: string, projectName?: string }>, ui?: { welcomeSeen?: boolean }, clientId?: string }} Config
+ * @typedef {{ api?: string, sessions?: Record<string, Session>, defaults?: Record<string, { project?: string, projectName?: string }>, ui?: { welcomeSeen?: boolean }, clientId?: string, trials?: Record<string, Trial> }} Config
+ * @typedef {{ token: string, expiresAt?: string, claimUrl?: string, projectId?: string, limits?: { creditUsd?: number, expiresInHours?: number }, savedAt?: number }} Trial
  */
 
 /** Where credentials live: $KADEEP_CONFIG_DIR, then $XDG_CONFIG_HOME/kadeep, %APPDATA%\kadeep on Windows, ~/.config/kadeep. */

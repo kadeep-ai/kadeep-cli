@@ -1,0 +1,12 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "kadeep CLI",
+  "description": "AI end-to-end testing from the terminal, CI and coding agents: kadeep test, kadeep a11y, the MCP server and releasegate.",
+  "folders": ["packages", "skills"],
+  "excludeFolders": ["packages/*/test", "node_modules"],
+  "rules": [
+    "Run `npx -y kadeep test <url> \"<user journey>\" --json` after UI changes and read verdict, bugs, console and network.",
+    "Exit codes: 0 pass, 1 fail, 2 usage or no model, 3 unreachable, 4 no verdict.",
+    "Without ANTHROPIC_API_KEY, run `npx -y kadeep try` for a free anonymous trial."
+  ]
+}

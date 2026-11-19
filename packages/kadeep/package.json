@@ -1,7 +1,7 @@
 {
   "name": "kadeep",
-  "version": "0.3.0",
-  "description": "KaDeep Studios CLI: AI end-to-end testing from your terminal, CI/CD and coding agents. Run test suites on web, mobile and desktop, read results, gate releases, and give Cursor or Claude Code KaDeep as MCP tools.",
+  "version": "0.4.0",
+  "description": "AI end-to-end testing for coding agents and CI: `kadeep test <url>` sends an AI QA engineer through any URL (localhost too) in a local browser and returns pass/fail with bugs, console and network errors. WCAG audits, an MCP server for Claude Code and Cursor, and KaDeep Studios cloud runs on web, mobile and desktop.",
   "keywords": [
     "kadeep",
     "kadeep-studios",
@@ -20,7 +20,15 @@
     "claude-code",
     "cursor",
     "localization",
-    "releasegate"
+    "releasegate",
+    "playwright",
+    "accessibility",
+    "wcag",
+    "a11y",
+    "agent-skills",
+    "codex",
+    "localhost",
+    "browser-testing"
   ],
   "homepage": "https://kadeep.ai",
   "repository": {
@@ -56,5 +64,6 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "prepublishOnly": "node ../../scripts/check-packs.mjs"
-  }
+  },
+  "mcpName": "io.github.kadeep-ai/kadeep"
 }
