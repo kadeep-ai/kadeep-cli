@@ -186,6 +186,7 @@ test('model errors tell the agent what to do', () => {
   assert.match(credit.message, /https:\/\/kadeep\.ai\/claim\/abc/)
   assert.equal(modelError({ status: 401, error: {} }, { provider: 'anthropic' }).code, 'model_auth')
   assert.equal(modelError({ status: 404, error: {} }, { provider: 'kadeep' }).code, 'model_unavailable')
+  assert.equal(modelError({ status: 403, error: { type: 'error', error: { type: 'not_on_plan', message: 'own provider' } } }, { provider: 'kadeep' }).code, 'not_on_plan')
   assert.equal(modelError({ status: 529, error: {} }, { provider: 'anthropic' }).exitCode, 3)
 })
 

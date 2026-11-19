@@ -99,6 +99,10 @@ export function modelError(err, { provider, claimUrl }) {
     const claim = body?.claimUrl ?? claimUrl
     return new KadeepError(`KaDeep trial credit is used up.${claim ? ` Claim this trial to keep going: ${claim}` : ' Upgrade at https://kadeep.ai/pricing'} (or set ANTHROPIC_API_KEY).`, { code: 'credit_exhausted', exitCode: EXIT.USAGE, status, details: claim ? { claimUrl: claim } : undefined })
   }
+  if (status === 403 && (type === 'not_on_plan' || body?.code === 'not_on_plan')) {
+    return new KadeepError(`Your KaDeep account runs on its own AI provider, so KaDeep's plan can't be the model here. Set ANTHROPIC_API_KEY (or use --provider anthropic). (${said})`, { code: 'not_on_plan', exitCode: EXIT.USAGE, status })
+  }
+  if (status === 503 && provider === 'kadeep') return new KadeepError(`KaDeep's plan can't serve the local runner right now (${said}). Set ANTHROPIC_API_KEY, or try again later.`, { code: 'model_unavailable', exitCode: EXIT.NETWORK, status })
   if (status === 401 || status === 403) {
     return new KadeepError(provider === 'kadeep' ? `KaDeep rejected the sign-in for the model (${said}).\n${NO_MODEL_HINT}` : `Anthropic rejected the credentials (${said}).\n${NO_MODEL_HINT}`, { code: 'model_auth', exitCode: EXIT.USAGE, status })
   }
