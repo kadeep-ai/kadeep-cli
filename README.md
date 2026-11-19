@@ -2,41 +2,70 @@
   <a href="https://kadeep.ai"><img src=".github/assets/kadeep-studios-logo.svg" alt="KaDeep Studios logo" width="96" height="96"></a>
 </p>
 
-<h1 align="center">KaDeep CLI</h1>
+<h1 align="center">kadeep</h1>
 
 <p align="center">
-  <b>AI end-to-end testing from your terminal, your CI/CD pipeline and your coding agents.</b><br>
-  Run KaDeep Studios tests on web, mobile and desktop, and get a go / no-go for every release.
+  <b>Your coding agent says "done". kadeep checks it actually works.</b><br>
+  An AI QA engineer that tests any URL, localhost included, in a real browser on your machine,<br>and returns pass / fail with the bugs, console errors and failed requests your agent needs to fix them.
 </p>
 
-<p align="center"><i>Know exactly when to ship. Engineering release confidence.</i></p>
+<p align="center"><i>Engineering release confidence.</i></p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kadeep"><img alt="kadeep on npm" src="https://img.shields.io/npm/v/kadeep?label=kadeep&color=0A0A0A"></a>
-  <a href="https://www.npmjs.com/package/releasegate"><img alt="releasegate on npm" src="https://img.shields.io/npm/v/releasegate?label=releasegate&color=0A0A0A"></a>
+  <a href="https://www.npmjs.com/package/kadeep"><img alt="npm downloads" src="https://img.shields.io/npm/dm/kadeep?color=0A0A0A"></a>
   <a href="https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kadeep-ai/kadeep-cli/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Node.js 20+" src="https://img.shields.io/badge/node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white">
-  <img alt="MCP server" src="https://img.shields.io/badge/MCP-server-6E56CF">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.kadeep-ai/kadeep"><img alt="MCP Registry" src="https://img.shields.io/badge/MCP_Registry-kadeep-6E56CF"></a>
+  <a href="https://skills.sh"><img alt="Agent Skill" src="https://img.shields.io/badge/agent_skill-npx_skills_add_kadeep--ai%2Fkadeep--cli-0A0A0A"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
-</p>
-
-<p align="center">
-  <a href="https://kadeep.ai/start"><b>Get started for free</b></a> ·
-  <a href="https://kadeep.ai/get-started">Book a walkthrough</a> ·
-  <a href="packages/kadeep#readme">kadeep docs</a> ·
-  <a href="packages/releasegate#readme">releasegate docs</a>
 </p>
 
 ---
 
-**KaDeep Studios** is an autonomous release-readiness QA agent. You give it your product and the user journeys that make revenue, and it runs them on web, mobile and desktop. What comes back is a **go or no-go, not a test report**.
+```sh
+npx kadeep test http://localhost:3000 "sign up with a new email and reach the dashboard"
+```
 
-**KaDeep CLI** brings KaDeep Studios to the command line, as two open-source npm packages:
+Example output, abridged:
 
-| Package | Command | What it does |
-| --- | --- | --- |
-| [`kadeep`](packages/kadeep#readme) | `kadeep` | The KaDeep Studios command line and MCP server. Type `kadeep` for an interactive home: talk to the KaDeep agent, `/` for commands, search, open any run without copying an id. Browse projects, suites and test cases; run them and read results; gate localization; set up a repository; and let Cursor, Claude Code and other AI coding agents use KaDeep as tools. `--json` on every command. |
-| [`releasegate`](packages/releasegate#readme) | `releasegate` | **KaDeep Release Gate**, a go / no-go quality gate for CI/CD. It reads `releasegate.yml`, runs the KaDeep Studios checks the policy requires for the current commit, writes a report and passes or fails the build. It has a non-blocking shadow mode for first-time setup. |
+```
+  · 1 fill e4 "test+kadeep@example.com"
+  · 2 fill e6 "correct-horse-9"
+  · 3 click Create account
+  ✗ 4 click Continue  Timeout 10000ms exceeded.
+
+✗ FAIL  Sign-up submits, but the dashboard never loads: POST /api/onboarding returns 500 and the page stays on "Loading…".
+  ✓ Sign-up form accepts a new email
+  ✗ Dashboard loads after sign-up
+
+1 bug
+  ● [critical] Dashboard never loads after sign-up
+      actual: Spinner forever; POST /api/onboarding → 500
+      expected: Dashboard with the welcome card
+
+4 actions · 48s · 1 console error, 1 failed request · evidence .kadeep/runs/2026-11-20_09-14-02-localhost-3000
+```
+
+- **Runs where your code runs.** Playwright on your machine, so it reaches `localhost`, preview URLs and staging behind a VPN. No deploy, no tunnel, no test files to write.
+- **Built for coding agents.** `--json` gives one document with `verdict`, `bugs[]` (repro steps, expected, actual, screenshot), `console[]` and `network[]`. Exit codes are stable: 0 pass, 1 fail, 2 setup, 3 unreachable, 4 no verdict.
+- **No sign-up to start.** Bring your own `ANTHROPIC_API_KEY`, or run `npx kadeep try` for a free anonymous trial.
+- **Accessibility too.** `npx kadeep a11y <url>` is a deterministic WCAG 2.2 AA audit (axe-core): no model, no account.
+- **Grows with you.** The same CLI runs saved suites in [KaDeep Studios](https://kadeep.ai) on web, iOS, Android and desktop, and `releasegate` turns them into a go / no-go gate on every PR.
+
+## Give it to your coding agent
+
+| Agent | One line |
+| --- | --- |
+| Any agent (Agent Skill) | `npx skills add kadeep-ai/kadeep-cli` |
+| This repo, every agent | `npx kadeep init --agent` (skill + `AGENTS.md` + MCP config, no sign-in) |
+| Claude Code (plugin) | `/plugin install kadeep --marketplace kadeep-ai/kadeep-cli` |
+| Claude Code (MCP) | `claude mcp add kadeep -- npx -y kadeep mcp` |
+| Codex CLI | `codex mcp add kadeep -- npx -y kadeep mcp` |
+| Gemini CLI | `gemini mcp add kadeep npx -y kadeep mcp` |
+| Cursor | [<img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Add kadeep MCP server to Cursor" height="32">](https://cursor.com/en/install-mcp?name=kadeep&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsImthZGVlcCIsIm1jcCJdfQ%3D%3D) |
+| VS Code | [Install in VS Code](https://insiders.vscode.dev/redirect/mcp/install?name=kadeep&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22kadeep%22%2C%22mcp%22%5D%7D) |
+
+Then ask your agent to *"build the pricing page and check it works with kadeep"*. The skill tells it when to test (after UI changes, before saying done), how to write the goal, and how to read the result. MCP tools: `test_url`, `a11y_audit`, `start_trial`, plus the KaDeep Studios project tools.
 
 ## Contents
 
@@ -49,22 +78,29 @@
 - [Which package do I need?](#which-package-do-i-need)
 - [Terminology](#terminology)
 - [FAQ](#faq)
-- [Development](#development)
+- [Contributing](#contributing)
 
 ## Quick start
 
-You need **Node.js 20+** and a KaDeep Studios account ([get started for free](https://kadeep.ai/start)).
+You need **Node.js 20+**. Nothing else to install: the first `kadeep test` fetches Playwright once and uses your Chrome (or downloads Chromium).
 
 ```sh
-npx kadeep                       # the interactive home: sign in, pick a project, then ask the agent or type /
-npx kadeep run --suite smoke     # or one command at a time: run a suite and wait for the verdict
+# Test anything, right now (your key, or a free trial)
+export ANTHROPIC_API_KEY=sk-ant-...            # or: npx kadeep try
+npx kadeep test http://localhost:3000 "add two items to the cart and check the total"
+npx kadeep test https://staging.example.com --viewport mobile     # no goal: explore and hunt for bugs
+npx kadeep a11y http://localhost:3000/checkout                    # WCAG 2.2 AA, no model needed
+
+# With a KaDeep Studios account (free: https://kadeep.ai/start)
+npx kadeep                       # the interactive home: sign in, pick a project, ask the agent or type /
+npx kadeep run --suite smoke     # run a saved suite in the cloud and wait for the verdict
 npx kadeep init                  # add a releasegate policy + GitHub Actions workflow to this repo
 ```
 
 After `kadeep init`, every pull request runs `npx releasegate` and gets a go / no-go:
 
 ```
-KaDeep Release Gate 0.3.0 · Engineering release confidence.
+KaDeep Release Gate 0.4.0 · Engineering release confidence.
 project p_9a118f0499704752be72 · commit 8c3f2d1 on feature/checkout PR #214 · mode enforce
 ▸ Smoke
 ✓ Smoke: 12/12 passed (2m 41s)
@@ -94,6 +130,10 @@ A terminal UI built on the dot, like the KaDeep Studios logo: every test is a do
 
 | You want to… | Command |
 | --- | --- |
+| Check a change works in a real browser, localhost included, no account | `kadeep test <url> "what to check"` |
+| Audit accessibility (WCAG 2.2 AA) with no model and no account | `kadeep a11y <url>` |
+| Let your agent start without a sign-up | `kadeep try` |
+| Teach every coding agent in a repo to test its work | `kadeep init --agent` |
 | Drive everything from one place in the terminal, like Claude Code | `kadeep` (the interactive home) |
 | Ask the KaDeep agent why something failed, or have it act | Type the question in the home, or `kadeep ask "…"` |
 | Run AI end-to-end tests from the terminal | `kadeep run --suite smoke` |
@@ -142,7 +182,7 @@ flowchart TB
 
 - **`kadeep` is the foundation.** It contains the CLI, the MCP server and the client library: sign-in, runs, localization and CI detection. It has no runtime dependencies.
 - **`releasegate` is built on `kadeep`.** It adds the policy file, the go / no-go decision, shadow mode and the reports. It depends on `kadeep`, never the reverse.
-- **Only HTTPS calls to the KaDeep Studios API.** Tests run in KaDeep Studios, on the model key your team configured there. The CLI itself never calls an AI model and collects no telemetry.
+- **Two ways to run.** `kadeep test` and `kadeep a11y` run a browser on your machine (the runtime, Playwright and the Anthropic SDK, is installed on first use, so the core CLI stays dependency-free). `kadeep run` and `releasegate` run saved suites in KaDeep Studios. No telemetry either way.
 
 Runs are **jobs on KaDeep's queue**. The CLI starts them and polls, so no request stays open while a suite runs. A long suite survives proxies with idle timeouts, and a CI network blip costs one retried poll:
 
@@ -195,7 +235,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx -y releasegate@^0.1
+      - run: npx -y releasegate@^0.4
         env:
           KADEEP_CI_TOKEN: ${{ secrets.KADEEP_CI_TOKEN }}
 ```
@@ -263,6 +303,24 @@ kadeep loc pull --asset en.json --locale hi-IN         # approved translations o
 ## FAQ
 
 <details>
+<summary><b>Do I need a KaDeep account?</b></summary>
+
+No, not for `kadeep test` and `kadeep a11y`. They run on your machine. `kadeep test` needs a model: your own `ANTHROPIC_API_KEY` (or an `ant auth login` profile), or KaDeep's plan through a free anonymous trial (`kadeep try`) or an account. Saved suites, cloud devices (iOS, Android, desktop), scheduled runs, team memory and `releasegate` use KaDeep Studios.
+</details>
+
+<details>
+<summary><b>How is this different from Playwright MCP or a browser tool?</b></summary>
+
+Those give your agent hands: click, type, snapshot. Your agent then has to plan the test, judge the result and remember what it checked, inside its own context window. `kadeep test` hands the whole job to a separate QA agent and returns only the verdict and the evidence, so your coding agent stays focused on the code and gets a second opinion it did not write itself.
+</details>
+
+<details>
+<summary><b>What does it cost?</b></summary>
+
+The CLI is free and open source. On your own key, a typical `kadeep test` is a few cents to tens of cents of model usage (Claude Opus 5.5 by default; `--model` and `--effort` trade cost for depth). `kadeep a11y` uses no model at all.
+</details>
+
+<details>
 <summary><b>What is a release gate?</b></summary>
 
 A release gate is an automated check in your CI/CD pipeline that decides whether a change may ship. `releasegate` makes that decision from KaDeep Studios results for the exact commit under test: suites, test cases and localization. It returns GO or NO-GO, with a report of why.
@@ -289,7 +347,7 @@ Yes. `kadeep mcp` is a Model Context Protocol server over stdio. Any MCP client 
 <details>
 <summary><b>What does the CLI send, and where are credentials stored?</b></summary>
 
-It only makes HTTPS calls to the KaDeep API you point it at (`https://api.kadeep.ai` by default), with no telemetry. Your session is stored in `~/.config/kadeep/config.json`, readable only by you. In CI, a per-project CI token is used instead of a personal login.
+It makes HTTPS calls to the KaDeep API you point it at (`https://api.kadeep.ai` by default) and, for `kadeep test` on your own key, to the Anthropic API. There is no telemetry. The page under test is only visited by the browser on your machine; its snapshots and screenshots go to the model you chose. Your session is stored in `~/.config/kadeep/config.json`, readable only by you. In CI, a per-project CI token is used instead of a personal login.
 </details>
 
 <details>
@@ -297,6 +355,10 @@ It only makes HTTPS calls to the KaDeep API you point it at (`https://api.kadeep
 
 Yes. Set `mode: shadow` in `releasegate.yml` (`kadeep init` starts there). The gate runs every check, writes the report and says "would have blocked", but always exits 0. Switch to `mode: enforce` when its verdicts match your judgement.
 </details>
+
+## Contributing
+
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues are labelled [`good first issue`](https://github.com/kadeep-ai/kadeep-cli/labels/good%20first%20issue). If kadeep caught a bug for you, a star helps other people find it.
 
 ## Development
 

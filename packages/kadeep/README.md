@@ -23,6 +23,28 @@
 
 Every command takes `--json`, and exit codes and error codes are stable, so scripts and agents can rely on the output.
 
+## New in 0.4: test any URL, on your machine, no account
+
+```sh
+npx kadeep test http://localhost:3000 "sign up with a new email and reach the dashboard"
+npx kadeep a11y http://localhost:3000/checkout        # WCAG 2.2 AA audit, no model, no account
+npx kadeep try                                        # free anonymous trial: no key, no sign-up
+npx kadeep init --agent                               # teach Claude Code, Cursor, Codex & co. to test their work
+```
+
+`kadeep test` sends an AI QA engineer through the page in a local Playwright browser (so `localhost` and VPN-only
+staging work) and returns a verdict: `--json` gives `{ verdict: "pass" | "fail" | "error", summary, checks, bugs,
+steps, console, network, artifacts }`, exit 0 / 1 / 4. The model is your `ANTHROPIC_API_KEY` (default
+`claude-opus-5-5`; `--model`, `--effort`) or KaDeep's plan after `kadeep try` or `kadeep login`. Playwright and the
+Anthropic SDK are installed once on first use, so `kadeep` itself keeps zero dependencies. Evidence (a screenshot
+per step and `report.json`) goes to `.kadeep/runs/`.
+
+For coding agents: `npx skills add kadeep-ai/kadeep-cli` (Agent Skill), `/plugin install kadeep --marketplace
+kadeep-ai/kadeep-cli` (Claude Code), or `claude mcp add kadeep -- npx -y kadeep mcp` (MCP tools `test_url`,
+`a11y_audit`, `start_trial`).
+
+## With a KaDeep Studios account
+
 ```sh
 npx kadeep                     # the interactive home: sign in, pick a project, then ask or type /
 npx kadeep run --suite smoke   # or one command at a time
@@ -55,7 +77,7 @@ New to KaDeep Studios? [Get started for free](https://kadeep.ai/start).
 
 ## Install
 
-Requires **Node.js 20 or newer**. `kadeep` has no runtime dependencies and talks to the KaDeep API over HTTPS (`https://api.kadeep.ai` by default).
+Requires **Node.js 20 or newer**. `kadeep` has no runtime dependencies and talks to the KaDeep API over HTTPS (`https://api.kadeep.ai` by default). `kadeep test` and `kadeep a11y` install their runtime (Playwright, the Anthropic SDK, axe-core) into `~/.cache/kadeep` the first time; set `KADEEP_RUNTIME_DIR` to put it elsewhere.
 
 ```sh
 npx kadeep --help          # run without installing

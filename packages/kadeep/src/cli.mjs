@@ -15,6 +15,8 @@ import jobs from './commands/jobs.mjs'
 import loc from './commands/loc.mjs'
 import mcp from './commands/mcp.mjs'
 import run from './commands/run.mjs'
+import test from './commands/test.mjs'
+import tryCmd from './commands/try.mjs'
 
 /**
  * @typedef {{ type: 'string' | 'boolean', short?: string, multiple?: boolean }} OptionSpec
@@ -52,13 +54,14 @@ const GLOBAL = {
 }
 
 /** @type {Command[]} */
-export const COMMANDS = [...auth, ...browse, ...run, ...jobs, ...ask, ...loc, ...ciToken, ...init, ...mcp]
+export const COMMANDS = [...test, ...tryCmd, ...auth, ...browse, ...run, ...jobs, ...ask, ...loc, ...ciToken, ...init, ...mcp]
 
 /** @param {string} name */
 const find = (name) => COMMANDS.find((c) => c.name === name || c.aliases?.includes(name))
 
 /** Help groups, in the order a new user meets them. */
 const GROUPS = [
+  ['Test now, on this machine (no project needed)', ['test', 'a11y', 'try']],
   ['Account', ['login', 'logout', 'whoami']],
   ['Tests', ['projects', 'use', 'suites', 'tests', 'issues']],
   ['Runs', ['run', 'jobs', 'runs', 'suite-runs']],
@@ -94,10 +97,15 @@ function globalHelp(out) {
     '  -v, --version',
     '',
     c.bold('Environment'),
-    '  KADEEP_API · KADEEP_PROJECT · KADEEP_TOKEN · KADEEP_CI_TOKEN · NO_COLOR',
+    '  KADEEP_API · KADEEP_PROJECT · KADEEP_TOKEN · KADEEP_CI_TOKEN · ANTHROPIC_API_KEY · NO_COLOR',
     '',
     c.bold('Exit codes'),
-    '  0 ok · 1 tests failed · 2 usage or sign-in · 3 unreachable · 4 not ready'
+    '  0 ok · 1 tests failed · 2 usage or sign-in · 3 unreachable · 4 not ready / no verdict',
+    '',
+    c.bold('Quick start'),
+    '  kadeep test http://localhost:3000 "sign up and reach the dashboard"   # AI test, local, any URL',
+    '  kadeep a11y http://localhost:3000                                     # WCAG 2.2 AA audit',
+    '  kadeep init --agent                                                   # teach Claude Code / Cursor / Codex to use kadeep'
   ].join('\n')
 }
 
@@ -179,7 +187,7 @@ async function welcome(out, env) {
   await showHeader(out, env, text)
   const next = session
     ? [['kadeep run --suite smoke', 'run a suite and wait for the verdict'], ['kadeep ask "…"', 'ask the KaDeep agent'], ['kadeep init', 'set up this repo: releasegate policy, CI, agents'], ['kadeep --help', 'every command']]
-    : [['kadeep login', 'sign in with your KaDeep Studios account'], ['kadeep --help', 'every command']]
+    : [['kadeep test <url> "…"', 'AI-test any URL here, localhost too'], ['kadeep try', 'free trial, no sign-up'], ['kadeep login', 'sign in with your KaDeep Studios account'], ['kadeep --help', 'every command']]
   out.lines(['', style.muted(`${g.small} ${g.small} ${g.small}`), ...next.map(([cmd, what]) => `  ${style.accent(String(cmd).padEnd(26))}${style.muted(String(what))}`), ''])
 }
 

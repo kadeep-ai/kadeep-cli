@@ -1,0 +1,13 @@
+{
+  "name": "kadeep",
+  "owner": { "name": "Kadeep Technologies", "url": "https://kadeep.ai" },
+  "metadata": { "description": "KaDeep: AI end-to-end testing for coding agents." },
+  "plugins": [
+    {
+      "name": "kadeep",
+      "source": "./",
+      "description": "Verify web changes in a real browser with an AI QA engineer, and audit accessibility (WCAG 2.2 AA).",
+      "category": "testing"
+    }
+  ]
+}

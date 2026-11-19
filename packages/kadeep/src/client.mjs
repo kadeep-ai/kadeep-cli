@@ -6,13 +6,13 @@ import { request, stream as streamRequest } from './http.mjs'
 /**
  * How a call is authenticated. A session is a login (refreshes itself); `token` is KADEEP_TOKEN (an access token,
  * never refreshed); `ci` is a project's CI token, which only the /api/ci/* routes accept.
- * @typedef {{ kind: 'session', accessToken: string, refreshToken: string } | { kind: 'token', token: string } | { kind: 'ci', token: string } | { kind: 'none' }} Auth
+ * @typedef {{ kind: 'session', accessToken: string, refreshToken: string } | { kind: 'token', token: string, trial?: boolean, claimUrl?: string } | { kind: 'ci', token: string } | { kind: 'none' }} Auth
  * @typedef {{ query?: Record<string, unknown>, body?: unknown, headers?: Record<string, string>, raw?: boolean, timeoutMs?: number, signal?: AbortSignal, accept?: number[] }} CallOptions
  * @typedef {ReturnType<typeof createClient>} Client
  */
 
 /** @param {string} api */
-const notLoggedIn = (api) => new KadeepError(`Not logged in to ${api}. Run \`kadeep login\` (or set KADEEP_TOKEN).`, { code: 'auth_required', exitCode: EXIT.USAGE })
+const notLoggedIn = (api) => new KadeepError(`Not logged in to ${api}. Run \`kadeep login\` (or set KADEEP_TOKEN). No account? \`kadeep try\` starts a free anonymous trial, or sign up free at https://kadeep.ai/start. \`kadeep test <url>\` works without an account on your own ANTHROPIC_API_KEY.`, { code: 'auth_required', exitCode: EXIT.USAGE, details: { next: ['kadeep try', 'kadeep login', 'https://kadeep.ai/start'] } })
 const noCiToken = () => new KadeepError('This needs the project\'s CI token: set KADEEP_CI_TOKEN (create one with `kadeep ci-token create`, or in the app under Settings → Connect).', { code: 'ci_token_required', exitCode: EXIT.USAGE })
 
 /**
@@ -25,8 +25,10 @@ const noCiToken = () => new KadeepError('This needs the project\'s CI token: set
  */
 export function resolveAuth(need, { api, env = process.env, config = loadConfig(env) }) {
   const session = config.sessions?.[api]
+  const trial = config.trials?.[api]
+  const liveTrial = trial?.token && (!trial.expiresAt || Date.parse(trial.expiresAt) > Date.now()) ? trial : undefined
   /** @type {Auth | null} */
-  const person = env.KADEEP_TOKEN ? { kind: 'token', token: env.KADEEP_TOKEN } : session?.accessToken ? { kind: 'session', accessToken: session.accessToken, refreshToken: session.refreshToken } : null
+  const person = env.KADEEP_TOKEN ? { kind: 'token', token: env.KADEEP_TOKEN } : session?.accessToken ? { kind: 'session', accessToken: session.accessToken, refreshToken: session.refreshToken } : liveTrial ? { kind: 'token', token: liveTrial.token, trial: true, claimUrl: liveTrial.claimUrl } : null
   const ciToken = env.KADEEP_CI_TOKEN || env.TESTSTUDIOS_CI_TOKEN
   /** @type {Auth | null} */
   const ci = ciToken ? { kind: 'ci', token: ciToken } : null
@@ -41,7 +43,7 @@ export function resolveAuth(need, { api, env = process.env, config = loadConfig(
   if (need === 'run') {
     const pick = person ?? ci
     if (pick) return pick
-    throw new KadeepError(`Not logged in to ${api} and no KADEEP_CI_TOKEN is set. Run \`kadeep login\`, or set KADEEP_CI_TOKEN in CI.`, { code: 'auth_required', exitCode: EXIT.USAGE })
+    throw new KadeepError(`Not logged in to ${api} and no KADEEP_CI_TOKEN is set. Run \`kadeep login\`, or set KADEEP_CI_TOKEN in CI. No account? \`kadeep try\` starts a free anonymous trial (https://kadeep.ai/start to sign up).`, { code: 'auth_required', exitCode: EXIT.USAGE, details: { next: ['kadeep try', 'kadeep login', 'https://kadeep.ai/start'] } })
   }
   return person ?? ci ?? { kind: 'none' }
 }
@@ -83,6 +85,7 @@ function toError(res, auth, api) {
   const details = body && typeof body === 'object' ? body : undefined
   if (status === 401) {
     if (auth.kind === 'session') return new KadeepError(`Your KaDeep session expired or was signed out. Run \`kadeep login\` again.`, { code: 'auth_required', exitCode: EXIT.USAGE, status })
+    if (auth.kind === 'token' && auth.trial) return new KadeepError(`Your KaDeep trial has ended or was claimed.${auth.claimUrl ? ` Claim it to keep your work: ${auth.claimUrl}.` : ''} Run \`kadeep try --new\` for a new one, or \`kadeep login\`.`, { code: 'trial_expired', exitCode: EXIT.USAGE, status })
     if (auth.kind === 'token') return new KadeepError('KADEEP_TOKEN was rejected (expired or revoked).', { code: 'auth_required', exitCode: EXIT.USAGE, status })
     if (auth.kind === 'ci') return new KadeepError(`The CI token was rejected${said ? ` (${said})` : ''}. Check KADEEP_CI_TOKEN and the project id.`, { code: 'auth_invalid', exitCode: EXIT.USAGE, status })
     return notLoggedIn(api)

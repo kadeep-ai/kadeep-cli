@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { DEFAULT_API } from '../config.mjs'
+import { AGENTS_SECTION, SKILL_MD } from '../agent-skill.mjs'
 import { VERSION } from '../errors.mjs'
 
 /**
@@ -160,6 +161,45 @@ export function planInit({ dir, api, project, suite, locales, ci, mcp, force, gi
     writes.push(mcpFile(join(dir, '.mcp.json'), entry, force), mcpFile(join(dir, '.cursor/mcp.json'), entry, force))
   }
   if (ignore) writes.push(gitignore(join(dir, '.gitignore')))
+  return writes
+}
+
+/**
+ * A section between markers in a shared file (AGENTS.md): appended once, replaced in place on --force.
+ * @param {string} file @param {string} section @param {boolean} force @returns {FileWrite}
+ */
+function markedSection(file, section, force) {
+  const current = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  const re = /<!-- kadeep:start -->[\s\S]*?<!-- kadeep:end -->\n?/
+  if (re.test(current)) {
+    if (current.match(re)?.[0] === section) return { path: file, action: 'unchanged' }
+    return force ? { path: file, action: 'updated', content: current.replace(re, section) } : { path: file, action: 'skipped', reason: 'already has a kadeep section (use --force to refresh it)' }
+  }
+  return { path: file, action: current ? 'updated' : 'created', content: `${current}${current && !current.endsWith('\n\n') ? (current.endsWith('\n') ? '\n' : '\n\n') : ''}${section}` }
+}
+
+/** @param {string} file @returns {FileWrite} */
+function ignoreRuns(file) {
+  const current = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  if (/^\/?\.kadeep\/?\s*$/m.test(current)) return { path: file, action: 'unchanged' }
+  return { path: file, action: current ? 'updated' : 'created', content: `${current}${current && !current.endsWith('\n') ? '\n' : ''}# kadeep test evidence (screenshots, reports)\n.kadeep/\n` }
+}
+
+/**
+ * `kadeep init --agent`: teach this repo's coding agents to test with kadeep. No sign-in needed: the skill for Claude
+ * Code (and every agent that reads .claude/skills or .agents/skills), an AGENTS.md section for Codex, Cursor, Gemini
+ * CLI and others, the MCP server for Claude Code and Cursor, and .kadeep/ in .gitignore.
+ * @param {{ dir: string, api: string, force: boolean, mcp?: boolean }} input
+ * @returns {FileWrite[]}
+ */
+export function planAgentInit({ dir, api, force, mcp = true }) {
+  /** @type {FileWrite[]} */
+  const writes = [plainFile(join(dir, '.claude/skills/kadeep/SKILL.md'), SKILL_MD, force), plainFile(join(dir, '.agents/skills/kadeep/SKILL.md'), SKILL_MD, force), markedSection(join(dir, 'AGENTS.md'), AGENTS_SECTION, force)]
+  if (mcp) {
+    const entry = { command: 'npx', args: ['-y', `kadeep@${RANGE}`, 'mcp'], ...(api !== DEFAULT_API ? { env: { KADEEP_API: api } } : {}) }
+    writes.push(mcpFile(join(dir, '.mcp.json'), entry, force), mcpFile(join(dir, '.cursor/mcp.json'), entry, force))
+  }
+  writes.push(ignoreRuns(join(dir, '.gitignore')))
   return writes
 }
 

@@ -1,0 +1,15 @@
+name: Wrong verdict
+description: kadeep test passed something broken, or failed something that works
+labels: [verdict-quality]
+body:
+  - type: textarea
+    id: goal
+    attributes: { label: URL type and goal, description: 'No private URLs needed: e.g. "a Next.js sign-up page, goal: sign up and reach the dashboard"' }
+    validations: { required: true }
+  - type: dropdown
+    id: kind
+    attributes: { label: What went wrong, options: [Passed but it is broken, Failed but it works, Got stuck or ran out of steps, Reported a bug that is not a bug] }
+    validations: { required: true }
+  - type: textarea
+    id: report
+    attributes: { label: report.json (from .kadeep/runs/…; remove anything private), render: json }

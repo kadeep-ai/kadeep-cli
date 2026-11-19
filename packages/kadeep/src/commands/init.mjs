@@ -5,7 +5,7 @@ import { relative, resolve } from 'node:path'
 import { resolveProject, routes } from '../api.mjs'
 import { EXIT, KadeepError, usage } from '../errors.mjs'
 import { createCiToken } from '../ops/ci-token.mjs'
-import { applyWrites, detectCi, planInit } from '../ops/init.mjs'
+import { applyWrites, detectCi, planAgentInit, planInit } from '../ops/init.mjs'
 import { choose, confirm, interactive, richPrompts } from '../prompt.mjs'
 import { box, header } from '../ui/index.mjs'
 
@@ -18,6 +18,7 @@ const init = {
   name: 'init',
   summary: 'Set up this repo: releasegate policy, CI workflow, agent config',
   usage: [
+    'kadeep init --agent [--force] [--no-mcp]     # no sign-in: teach Claude Code, Cursor, Codex & co. to test with kadeep',
     'kadeep init                                  # interactive',
     'kadeep init --yes --project <p> --suite <key> [--ci github|none] [--no-mcp] [--no-ci-token] [--force] [--dir <path>]',
     'Writes releasegate.yml (mode: shadow), .github/workflows/releasegate.yml, .mcp.json, .cursor/mcp.json and a',
@@ -30,11 +31,23 @@ const init = {
     'no-ci-token': { type: 'boolean' },
     yes: { type: 'boolean', short: 'y' },
     force: { type: 'boolean' },
-    dir: { type: 'string' }
+    dir: { type: 'string' },
+    agent: { type: 'boolean' }
   },
   async run({ values, out, client, api, env, config }) {
     const dir = resolve(values.dir ?? '.')
     if (!existsSync(dir)) throw usage(`No such directory: ${dir}`)
+    if (values.agent) {
+      const files = applyWrites(planAgentInit({ dir, api, force: Boolean(values.force), mcp: !values['no-mcp'] }))
+      const next = ['Commit the new files: every agent working in this repo now knows to run `npx kadeep test <url> "<journey>"` after UI changes.', 'Without ANTHROPIC_API_KEY, `npx kadeep try` gives a free trial (no sign-up).', 'For CI go / no-go on every PR, run `kadeep init` (needs a KaDeep sign-in).']
+      out.result({ ok: true, dir, files, next }, () => {
+        out.line(`Agent setup in ${dir}`)
+        for (const f of files) out.line(`  ${f.action === 'skipped' ? out.c.yellow('skipped') : f.action === 'unchanged' ? out.c.dim('unchanged') : out.c.green(f.action)}  ${relative(dir, f.path) || f.path}${f.reason ? out.c.dim(`  (${f.reason})`) : ''}`)
+        out.line()
+        for (const n of next) out.line(`  - ${n}`)
+      })
+      return EXIT.OK
+    }
     if (values.ci && !['github', 'none'].includes(values.ci)) throw usage('--ci must be github or none')
     const ask = interactive() && !values.yes && !out.json
     // Rich terminals get the step-by-step wizard (arrow keys, filtering); everything else keeps the line prompts.
