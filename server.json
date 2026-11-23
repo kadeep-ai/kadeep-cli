@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.kadeep-ai/kadeep",
+  "title": "KaDeep",
+  "description": "AI QA for coding agents: test any URL (localhost too) in a real browser, WCAG audits, CI gate.",
+  "repository": { "url": "https://github.com/kadeep-ai/kadeep-cli", "source": "github", "subfolder": "packages/kadeep" },
+  "websiteUrl": "https://kadeep.ai",
+  "version": "0.4.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "kadeep",
+      "version": "0.4.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "runtimeArguments": [{ "type": "positional", "value": "-y" }],
+      "packageArguments": [{ "type": "positional", "value": "mcp" }],
+      "environmentVariables": [
+        { "name": "ANTHROPIC_API_KEY", "description": "Your Anthropic key for test_url. Optional: without it, start_trial gives a free KaDeep trial.", "isSecret": true, "isRequired": false },
+        { "name": "KADEEP_TOKEN", "description": "KaDeep access token (optional; `kadeep login` or start_trial also work).", "isSecret": true, "isRequired": false },
+        { "name": "KADEEP_PROJECT", "description": "Default KaDeep project id or name for the cloud project tools.", "isRequired": false }
+      ]
+    }
+  ]
+}

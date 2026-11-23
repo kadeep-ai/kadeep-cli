@@ -1,0 +1,13 @@
+{
+  "name": "kadeep",
+  "version": "0.4.0",
+  "description": "Verify web changes in a real browser: an AI QA engineer tests any URL (localhost too) and returns pass/fail, bugs, console and network errors. Plus WCAG 2.2 accessibility audits.",
+  "author": { "name": "Kadeep Technologies", "url": "https://kadeep.ai" },
+  "homepage": "https://github.com/kadeep-ai/kadeep-cli",
+  "repository": "https://github.com/kadeep-ai/kadeep-cli",
+  "license": "Apache-2.0",
+  "keywords": ["testing", "qa", "e2e", "playwright", "browser", "accessibility", "wcag", "mcp"],
+  "mcpServers": {
+    "kadeep": { "command": "npx", "args": ["-y", "kadeep@^0.4", "mcp"] }
+  }
+}

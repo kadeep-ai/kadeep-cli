@@ -7,6 +7,8 @@ import { KadeepError, VERSION } from './errors.mjs'
 import { getRun, getSuiteRun, getTest, listIssues, listProjects, listRuns, listSuiteRuns, listSuites, listTests } from './ops/browse.mjs'
 import { locStatus, locValidate } from './ops/loc.mjs'
 import { BROWSERS, jobStatus, runTests, VIEWPORTS } from './ops/run.mjs'
+import { localA11y, localTest } from './ops/local.mjs'
+import { startTrial } from './commands/try.mjs'
 
 /**
  * `kadeep mcp`: a Model Context Protocol server on stdio (newline-delimited JSON-RPC) for Cursor, Claude Code and any
@@ -15,12 +17,15 @@ import { BROWSERS, jobStatus, runTests, VIEWPORTS } from './ops/run.mjs'
  * logs go to stderr.
  *
  * @typedef {{ name: string, title: string, description: string, inputSchema: object, readOnly?: boolean, run: (args: any, x: ToolContext) => Promise<unknown> }} Tool
- * @typedef {{ client: (need: 'user' | 'run' | 'ci' | 'any') => import('./client.mjs').Client, project: (client: import('./client.mjs').Client, ref?: string) => Promise<string>, api: string, defaultProject?: string, signal: AbortSignal, progress: (message: string) => void }} ToolContext
+ * @typedef {{ client: (need: 'user' | 'run' | 'ci' | 'any') => import('./client.mjs').Client, project: (client: import('./client.mjs').Client, ref?: string) => Promise<string>, api: string, env: NodeJS.ProcessEnv, defaultProject?: string, signal: AbortSignal, progress: (message: string) => void }} ToolContext
  */
 
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
 const INSTRUCTIONS = [
+  'Use test_url to check that a web change actually works for a user: it opens the URL (localhost included) in a real browser on this machine, has an AI QA engineer try the goal, and returns pass/fail, bugs with repro steps, console errors, failed requests and screenshot paths. Run it after UI changes and before saying a task is done; fix what it reports and run it again.',
+  'Use a11y_audit for a deterministic WCAG 2.2 AA check of a page. Neither tool needs a KaDeep project.',
+  'If a tool says no model or not signed in, call start_trial (free, anonymous, no sign-up) and retry, and tell the user the claim link it returns.',
   'KaDeep is a QA platform: projects hold test cases (called tests; "flows" in the API) grouped into suites; runs record each execution.',
   'Pass `project` (id or name) unless a default is configured; projects_list shows what exists.',
   '`run` queues a suite or tests and waits for the verdict (up to max_wait_seconds); if it is still running, call job_status with wait: true.',
@@ -34,6 +39,39 @@ const limitProp = { limit: { type: 'integer', minimum: 1, maximum: 200, descript
 
 /** @type {Tool[]} */
 export const TOOLS = [
+  {
+    name: 'test_url',
+    title: 'Test a URL',
+    description: 'AI end-to-end test of any URL, run locally in a real browser (reaches localhost and private staging). An AI QA engineer tries the goal like a user and returns { verdict: pass|fail|error, summary, checks, bugs[{title,severity,steps,expected,actual,screenshot}], steps, console, network, artifacts }. Takes 1 to 5 minutes and uses model credits.',
+    inputSchema: schema(
+      {
+        url: { type: 'string', description: 'Page to start on, e.g. http://localhost:3000/signup' },
+        goal: { type: 'string', description: 'What to check, as a user journey: "sign up with a new email and land on the dashboard". Omit to explore and find bugs.' },
+        viewport: { type: 'string', enum: ['desktop', 'mobile'] },
+        max_steps: { type: 'integer', minimum: 3, maximum: 80, description: 'Most browser actions to take (default 30)' }
+      },
+      ['url']
+    ),
+    run: async (a, x) => localTest({ url: a.url, goal: a.goal, viewport: a.viewport, maxSteps: a.max_steps, env: x.env, api: x.api, signal: x.signal, note: (m) => x.progress(m), onStep: (st) => x.progress(`${st.n}. ${st.action}${st.ok ? '' : ` failed: ${st.error}`}`) })
+  },
+  {
+    name: 'a11y_audit',
+    title: 'Accessibility audit',
+    description: 'Automated WCAG audit (axe-core) of one URL in a real local browser. Deterministic, no model, no account. Returns { ok, violations[{id,impact,help,helpUrl,wcag,nodes[{target,html,summary}]}], counts }.',
+    inputSchema: schema({ url: { type: 'string' }, standard: { type: 'string', enum: ['wcag22aa', 'wcag21aa', 'wcag2aa', 'wcag22a'] }, fail_on: { type: 'string', enum: ['critical', 'serious', 'moderate', 'minor'] }, viewport: { type: 'string', enum: ['desktop', 'mobile'] } }, ['url']),
+    readOnly: true,
+    run: async (a, x) => localA11y({ url: a.url, standard: a.standard, failOn: a.fail_on, viewport: a.viewport, env: x.env, note: (m) => x.progress(m) })
+  },
+  {
+    name: 'start_trial',
+    title: 'Start a free trial',
+    description: 'Start (or reuse) a free anonymous KaDeep trial on this machine: no sign-up. After it, test_url runs on KaDeep\'s plan with no API key, and the project tools see a sandbox project. Returns a claimUrl: give it to the user so they can keep the work.',
+    inputSchema: schema({}),
+    run: async (_a, x) => {
+      const t = await startTrial({ api: x.api, env: x.env })
+      return { ok: true, expiresAt: t.expiresAt, claimUrl: t.claimUrl, projectId: t.projectId, limits: t.limits, reused: t.reused }
+    }
+  },
   {
     name: 'whoami',
     title: 'Who am I',
@@ -220,6 +258,7 @@ export function createMcpServer({ env = process.env, send, log = () => undefined
     /** @type {ToolContext} */
     const x = {
       api,
+      env,
       defaultProject: env.KADEEP_PROJECT || config.defaults?.[api]?.project,
       client: (need) => createClient({ api, auth: resolveAuth(need, { api, env, config }), env }),
       project: async (client, ref) => (await resolveProject(client, { ref, env, config })).id,
@@ -239,7 +278,8 @@ export function createMcpServer({ env = process.env, send, log = () => undefined
       if (abort.signal.aborted) return
       const e = /** @type {Error} */ (err)
       if (!(err instanceof KadeepError)) log(`kadeep mcp: ${tool.name} failed: ${e?.stack ?? e}`)
-      send({ jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: `Error: ${e?.message ?? String(err)}` }], isError: true } })
+      const code = err instanceof KadeepError ? err.code : 'internal'
+      send({ jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: `Error (${code}): ${e?.message ?? String(err)}` }], isError: true } })
     } finally {
       inflight.delete(msg.id)
     }
